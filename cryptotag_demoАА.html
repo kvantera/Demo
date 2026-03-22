@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CryptoTag — IFF System</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060e18;font-family:"Courier New",monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100vw;min-height:100vh;overflow:hidden}
+body::before{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(0,180,100,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,100,.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+#title{font-size:clamp(16px,2.5vw,26px);font-weight:900;letter-spacing:6px;color:#00ff88;text-shadow:0 0 24px #00ff88;margin-bottom:4px;text-align:center;white-space:nowrap}
+#lbl{font-size:clamp(11px,1.6vw,15px);letter-spacing:3px;color:#ffcc00;text-align:center;margin-bottom:6px;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95vw}
+#wrap{position:relative;width:min(960px,100vw);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;background:#07111c;border:1px solid rgba(0,255,136,.15);border-radius:4px;box-shadow:0 0 50px rgba(0,255,136,.07)}
+#log{position:absolute;right:8px;top:8px;width:clamp(130px,20%,200px);background:rgba(0,0,0,.82);border:1px solid rgba(0,255,136,.2);border-left:2px solid #00ff88;border-radius:4px;padding:8px;font-size:clamp(8px,1.3vw,11px);line-height:1.8;max-height:58%;overflow:hidden;pointer-events:none}
+#log-title{color:#ffcc00;letter-spacing:2px;margin-bottom:4px;font-size:11px}
+.ll{opacity:0;animation:fi .3s forwards}
+.lg{color:#00ff88}.lr{color:#ff3333}.ly{color:#ffcc00}.lb{color:#00cfff}
+@keyframes fi{to{opacity:1}}
+#status{margin-top:6px;font-size:clamp(12px,1.8vw,15px);letter-spacing:2px;text-align:center;min-height:18px;transition:color .3s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95vw}
+#ctrl{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.cbtn{background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:"Courier New",monospace;font-size:10px;letter-spacing:2px;padding:7px 18px;cursor:pointer;border-radius:2px;transition:all .2s}
+.cbtn:hover{background:rgba(0,255,136,.12)}
+#restartBtn{display:none}
+#speechBtn.off{border-color:#ff3333;color:#ff3333}
+</style>
+</head>
+<body>
+<div id="title">◈ CRYPTOTAG — IFF SYSTEM ◈</div>
+<div id="lbl">ІНІЦІАЛІЗАЦІЯ...</div>
+<div id="wrap">
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="log"><div id="log-title">▌ SYSTEM LOG</div><div id="le"></div></div>
+</div>
+<div id="status"></div>
+<div id="ctrl">
+  <button class="cbtn" id="speechBtn" onclick="toggleSpeech()">🔊 ОЗВУЧКА</button>
+  <button class="cbtn" id="restartBtn" onclick="init()">▶ ПЕРЕЗАПУСТИТИ</button>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById("c"),ctx=cv.getContext("2d");
+var W=960,H=540;
+var G="#00ff88",R="#ff3333",Y="#ffcc00",B="#00cfff";
+
+// ── Positions ──────────────────────────────────────────
+var FRONTY=355;
+var CX=95,CY=115;   // controller
+var OX=95,OY=235;   // operator
+var RX=480,RY=180;  // interrogator
+var ZX=640,ZY=165;  // zenith
+var PHX=210,PHY=195;// plane home
+var PRX=700,PRY=420;// plane recon
+var PRY2=188;       // plane return altitude
+var EX0=670,EY0=452;// enemy start
+var EYC=298;        // enemy chase altitude
+
+// ── Speech ──────────────────────────────────────────────
+var speechOn=true;
+var synth=window.speechSynthesis;
+
+var CUES=[
+  "Контролер активує пристрій.",
+  "Оператор встановлює модуль.",
+  "Місія розпочата.",
+  "Увага!",
+  "Хто ти?",
+  "Свій!",
+  "Чужий!",
+  "Знищити!",
+  "Ворожий дрон знищено. Місія виконана!"
+];
+
+var voicesLoaded=false;
+function loadVoices(){
+  if(voicesLoaded)return;
+  synth.getVoices();
+  voicesLoaded=true;
+}
+if(synth.onvoiceschanged!==undefined){
+  synth.onvoiceschanged=function(){voicesLoaded=true;};
+}
+
+function getBestVoice(){
+  var vv=synth.getVoices();
+  // ТІЛЬКИ УКРАЇНСЬКА МОВА
+  // 1. Спробувати чоловічий українській
+  var ukMale = vv.find(function(v){
+    return v.lang.indexOf("uk")===0 &&
+           !/female|woman|milena|oksana|natalia|irina|alina|victoria|siri|karen|samantha|zira|hazel|fiona/i.test(v.name);
+  });
+  // 2. Будь-який українській
+  var ukAny = vv.find(function(v){ return v.lang.indexOf("uk")===0; });
+  // 3. Якщо немає українського — тільки англійський чоловічий як крайній варіант
+  var enMale = vv.find(function(v){
+    return v.lang.indexOf("en")===0 &&
+           /male|man|david|paul|mark|alex|fred|daniel|george/i.test(v.name);
+  });
+  return ukMale || ukAny || enMale || (vv.length?vv[0]:null);
+}
+
+// Core: speak one utterance, call cb when done
+function sayOne(text, cb){
+  if(!speechOn||!synth){if(cb)cb();return;}
+  var u=new SpeechSynthesisUtterance(text);
+  var v=getBestVoice();
+  if(v)u.voice=v;
+  u.lang="uk-UA";
+  u.rate=0.82;
+  u.pitch=1.0;
+  u.volume=1.0;
+  var done=false;
+  function finish(){if(!done){done=true;if(cb)setTimeout(cb,350);}}
+  u.onend=finish;
+  u.onerror=finish;
+  // Failsafe timeout: if speech doesn't finish in 8s, move on
+  var timeout=setTimeout(finish, 8000);
+  u.onend=function(){clearTimeout(timeout);finish();};
+  u.onerror=function(){clearTimeout(timeout);finish();};
+  synth.speak(u);
+}
+
+// Speak cue by index — cancel any current speech first
+function speak(i){
+  if(!speechOn)return;
+  loadVoices();
+  synth.cancel();
+  // Wait for cancel to complete before speaking
+  setTimeout(function(){
+    sayOne(CUES[i], null);
+  }, 250);
+}
+
+// Speak without cancelling — for sequential cues in same scene
+function speakAfter(i, delayMs){
+  if(!speechOn)return;
+  setTimeout(function(){
+    // Only speak if synth is free
+    if(!synth.speaking){
+      sayOne(CUES[i], null);
+    } else {
+      // Wait more
+      setTimeout(function(){ sayOne(CUES[i], null); }, 600);
+    }
+  }, delayMs||700);
+}
+
+function toggleSpeech(){
+  speechOn=!speechOn;
+  synth.cancel();
+  var b=document.getElementById("speechBtn");
+  if(speechOn){b.textContent="🔊 ОЗВУЧКА";b.classList.remove("off");}
+  else{b.textContent="🔇 ВИМКНЕНО";b.classList.add("off");}
+}
+
+// ── Util ───────────────────────────────────────────────
+function addLog(t,c){
+  var el=document.getElementById("le");
+  var d=document.createElement("div");d.className="ll "+c;d.textContent=t;
+  el.appendChild(d);
+  if(el.children.length>13)el.removeChild(el.firstChild);
+}
+function setLbl(t){document.getElementById("lbl").textContent=t;}
+function setSt(t,c){var s=document.getElementById("status");s.textContent=t;s.style.color=c;}
+function gw(c,b){ctx.shadowColor=c;ctx.shadowBlur=b;}
+function ng(){ctx.shadowColor="transparent";ctx.shadowBlur=0;}
+
+// ── Draw ───────────────────────────────────────────────
+function drawBg(){
+  ctx.fillStyle="rgba(0,255,136,.032)";ctx.fillRect(0,0,W,FRONTY);
+  ctx.fillStyle="rgba(255,51,51,.032)";ctx.fillRect(0,FRONTY,W,H-FRONTY);
+  ctx.strokeStyle="rgba(0,200,120,.04)";ctx.lineWidth=1;
+  for(var x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(var y=0;y<H;y+=44){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.fillStyle="rgba(0,255,136,.018)";
+  ctx.fillRect(0,(Date.now()/18)%H,W,2);
+}
+
+function drawFront(){
+  ctx.save();
+  ctx.strokeStyle="#ff8800";ctx.lineWidth=2.5;gw("#ff8800",12);
+  ctx.setLineDash([16,8]);
+  ctx.beginPath();ctx.moveTo(0,FRONTY);ctx.lineTo(W,FRONTY);ctx.stroke();
+  ctx.setLineDash([]);ng();
+  ctx.font='bold 13px "Courier New"';
+  ctx.fillStyle="rgba(0,255,136,.55)";ctx.textAlign="left";
+  ctx.fillText("▲  НАША СТОРОНА",14,FRONTY-10);
+  ctx.fillStyle="rgba(255,51,51,.55)";
+  ctx.fillText("▼  ВОРОЖА СТОРОНА",14,FRONTY+20);
+  ctx.fillStyle="rgba(255,136,0,.7)";ctx.font='13px "Courier New"';
+  ctx.textAlign="center";
+  ctx.fillText("— — —  ЛІНІЯ ФРОНТУ  — — —",W/2,FRONTY-5);
+  ctx.restore();
+}
+
+function drawPerson(x,y,tag,lbl){
+  ctx.save();
+  gw(Y,8);ctx.fillStyle=Y;
+  ctx.beginPath();ctx.arc(x,y-28,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=Y;ctx.lineWidth=2.5;ctx.stroke();
+  ctx.strokeStyle=G;ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(x,y-34,10,Math.PI,0);ctx.stroke();
+  ctx.strokeStyle=Y;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,y-19);ctx.lineTo(x,y+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-11,y-12);ctx.lineTo(x+11,y-12);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y+4);ctx.lineTo(x-7,y+22);
+  ctx.moveTo(x,y+4);ctx.lineTo(x+7,y+22);ctx.stroke();ng();
+  ctx.fillStyle=Y;ctx.font='13px "Courier New"';ctx.textAlign="center";
+  ctx.fillText(lbl,x,y+34);
+  if(tag){
+    gw(G,14);ctx.fillStyle=G;ctx.fillRect(x+12,y-19,18,11);ng();
+    ctx.strokeStyle=G;ctx.lineWidth=1;ctx.strokeRect(x+12,y-19,18,11);
+    ctx.fillStyle="#000";ctx.font='9px "Courier New"';ctx.textAlign="left";
+    ctx.fillText("CT",x+15,y-11);
+  }
+  ctx.restore();
+}
+
+function drawPlane(x,y,dir,tag,al){
+  if(al===undefined)al=1;
+  ctx.save();ctx.globalAlpha=al;ctx.translate(x,y);ctx.scale(dir,1);
+  gw(G,tag?22:8);ctx.fillStyle=G;
+  ctx.beginPath();ctx.moveTo(28,0);ctx.lineTo(-20,7);ctx.lineTo(-15,0);ctx.lineTo(-20,-7);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(0,220,120,.85)";
+  ctx.beginPath();ctx.moveTo(5,-3);ctx.lineTo(-9,-27);ctx.lineTo(-17,-27);ctx.lineTo(-8,-3);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(5,3);ctx.lineTo(-9,27);ctx.lineTo(-17,27);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();
+  ctx.fillStyle=G;
+  ctx.beginPath();ctx.moveTo(-15,-6);ctx.lineTo(-25,-18);ctx.lineTo(-20,-6);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(180,255,220,.28)";
+  ctx.beginPath();ctx.ellipse(15,0,6,4,0,0,Math.PI*2);ctx.fill();
+  if(tag){
+    ctx.fillStyle="#000";ctx.fillRect(-5,-4,11,7);
+    ctx.strokeStyle=G;ctx.lineWidth=1;ctx.strokeRect(-5,-4,11,7);
+    ctx.fillStyle=G;ctx.font='8px "Courier New"';ctx.textAlign="center";ctx.fillText("CT",1,2);
+  }
+  ng();ctx.restore();
+  ctx.save();ctx.globalAlpha=al;ctx.fillStyle=G;
+  ctx.font='14px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("БПЛА (СВІЙ)",x,y-36);ctx.restore();
+}
+
+function drawEnemy(x,y,al){
+  if(al===undefined)al=1;
+  ctx.save();ctx.globalAlpha=al;ctx.translate(x,y);
+  gw(R,12);ctx.fillStyle=R;
+  ctx.beginPath();ctx.ellipse(0,0,15,9,0,0,Math.PI*2);ctx.fill();ng();
+  var arms=[[-20,-20],[20,-20],[-20,20],[20,20]];
+  for(var i=0;i<arms.length;i++){
+    var ax=arms[i][0],ay=arms[i][1];
+    ctx.strokeStyle=R;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(ax,ay);ctx.stroke();
+    ctx.strokeStyle="rgba(255,80,80,.5)";ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.ellipse(ax,ay,7,2.5,.5,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ax,ay,7,2.5,-.5,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();ctx.globalAlpha=al;ctx.fillStyle=R;
+  ctx.font='14px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("БПЛА (ЧУЖИЙ)",x,y+34);ctx.restore();
+}
+
+function drawREB(x,y){
+  ctx.save();
+  // Base box
+  gw(B,10);ctx.fillStyle=B;ctx.fillRect(x-18,y-13,36,26);ng();
+  ctx.strokeStyle=B;ctx.lineWidth=1.5;ctx.strokeRect(x-18,y-13,36,26);
+  // Screen
+  ctx.fillStyle="rgba(0,207,255,.18)";ctx.fillRect(x-11,y-7,22,14);
+  ctx.fillStyle=B;ctx.font='11px "Courier New"';ctx.textAlign="center";ctx.fillText("IFF",x,y+3);
+
+  // Antenna mast (vertical pole)
+  gw(B,6);ctx.strokeStyle=B;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(x,y-13);ctx.lineTo(x,y-42);ctx.stroke();
+
+  // Antenna dish (parabolic arc at top)
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.arc(x, y-42, 13, Math.PI*1.1, Math.PI*1.9);
+  ctx.stroke();
+
+  // Dish support struts
+  ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(x,y-42);
+  ctx.lineTo(x-10,y-50);
+  ctx.moveTo(x,y-42);
+  ctx.lineTo(x+10,y-50);
+  ctx.stroke();
+
+  // Signal waves (3 arcs radiating from dish)
+  ctx.lineWidth=1;
+  [8,14,20].forEach(function(r){
+    ctx.globalAlpha=0.15+0.08*(20-r)/20;
+    ctx.beginPath();
+    ctx.arc(x,y-55,r,Math.PI*1.15,Math.PI*1.85);
+    ctx.stroke();
+  });
+  ctx.globalAlpha=1;ng();
+
+  // Blinking dot at dish center
+  var pulse=0.5+Math.sin(Date.now()/300)*0.5;
+  ctx.globalAlpha=pulse;
+  gw(B,10);ctx.fillStyle=B;
+  ctx.beginPath();ctx.arc(x,y-55,3,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ng();
+
+  ctx.fillStyle=B;ctx.font='14px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("ЗАПИТУВАЧ",x,y+42);
+  ctx.restore();
+}
+
+function drawZenith(x,y,ang){
+  ctx.save();
+  gw(B,8);ctx.fillStyle=B;ctx.fillRect(x-18,y+4,36,16);ng();
+  ctx.strokeStyle="rgba(0,180,220,.4)";ctx.lineWidth=1;ctx.strokeRect(x-18,y+4,36,16);
+  ctx.strokeStyle=B;ctx.lineWidth=2;
+  [-11,11].forEach(function(ox){
+    ctx.beginPath();ctx.arc(x+ox,y+20,6,0,Math.PI*2);ctx.stroke();
+    gw(B,4);ctx.fillStyle=B;ctx.beginPath();ctx.arc(x+ox,y+20,2.5,0,Math.PI*2);ctx.fill();ng();
+  });
+  ctx.translate(x,y+4);ctx.rotate(ang);
+  gw(B,10);ctx.strokeStyle=B;ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(38,0);ctx.stroke();ng();
+  ctx.fillStyle="#88eeff";ctx.beginPath();ctx.arc(38,0,4,0,Math.PI*2);ctx.fill();
+  gw(B,6);ctx.fillStyle=B;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ng();
+  ctx.restore();
+  ctx.fillStyle=B;ctx.font='14px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("ЗЕНІТКА",x,y+42);
+}
+
+// ── Signal ─────────────────────────────────────────────
+function Sig(x1,y1,x2,y2,col,lbl,cb,spd){
+  this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;
+  this.col=col;this.lbl=lbl;this.cb=cb;
+  this.spd=spd||0.018;this.p=0;this.done=false;
+}
+Sig.prototype.tick=function(){
+  if(this.done)return;
+  this.p=Math.min(1,this.p+this.spd);
+  if(this.p>=1){this.done=true;if(this.cb)this.cb();}
+};
+Sig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p;
+  var py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(this.col,10);ctx.strokeStyle=this.col;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();ng();
+  gw(this.col,16);ctx.fillStyle=this.col;
+  ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();ng();
+  if(this.p>0.25&&this.p<0.82){
+    var mx=this.x1+(px-this.x1)*0.55,my=this.y1+(py-this.y1)*0.55-12;
+    gw(this.col,8);ctx.fillStyle=this.col;
+    ctx.font='bold 13px "Courier New"';ctx.textAlign="center";
+    ctx.fillText(this.lbl,mx,my);ng();
+  }
+  ctx.restore();
+};
+
+function FSig(x1,y1,x2,y2,cb){
+  this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;
+  this.cb=cb;this.p=0;this.done=false;this.spd=0.022;this.fl=0;
+}
+FSig.prototype.tick=function(){
+  if(this.done)return;
+  this.p=Math.min(1,this.p+this.spd);this.fl+=0.25;
+  if(this.p>=1){this.done=true;if(this.cb)this.cb();}
+};
+FSig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p;
+  var py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();
+  ctx.strokeStyle="rgba(255,51,51,.25)";ctx.lineWidth=10;gw(R,20);
+  ctx.setLineDash([14,6]);
+  ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();
+  ctx.strokeStyle=R;ctx.lineWidth=3;gw(R,14);
+  ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();
+  ctx.setLineDash([]);ng();
+  var pulse=0.6+Math.sin(this.fl)*0.4;
+  ctx.globalAlpha=pulse;gw(R,24);ctx.fillStyle=R;
+  ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fill();ng();ctx.globalAlpha=1;
+  if(this.p>0.2&&this.p<0.85){
+    var mx=this.x1+(px-this.x1)*0.55,my=this.y1+(py-this.y1)*0.55-16;
+    gw(R,12);ctx.fillStyle=R;ctx.font='bold 14px "Courier New"';
+    ctx.textAlign="center";ctx.fillText("ЗНИЩИТИ!",mx,my);ng();
+  }
+  ctx.restore();
+};
+
+function Shell(x1,y1,x2,y2,cb){
+  this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;
+  this.cb=cb;this.p=0;this.done=false;this.trail=[];
+}
+Shell.prototype.tick=function(){
+  if(this.done)return;
+  this.p=Math.min(1,this.p+0.026);
+  var cx=this.x1+(this.x2-this.x1)*this.p;
+  var cy=this.y1+(this.y2-this.y1)*this.p;
+  this.trail.push({x:cx,y:cy,a:1});
+  for(var i=0;i<this.trail.length;i++)this.trail[i].a-=0.07;
+  this.trail=this.trail.filter(function(t){return t.a>0;});
+  if(this.p>=1){this.done=true;if(this.cb)this.cb();}
+};
+Shell.prototype.draw=function(){
+  for(var i=0;i<this.trail.length;i++){
+    var t=this.trail[i];
+    ctx.save();ctx.globalAlpha=t.a*0.55;gw("#ff8800",6);ctx.fillStyle="#ff8800";
+    ctx.beginPath();ctx.arc(t.x,t.y,3,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  }
+  if(this.done)return;
+  var cx=this.x1+(this.x2-this.x1)*this.p;
+  var cy=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(Y,18);ctx.fillStyle=Y;
+  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+};
+
+// Persistent fire at explosion site
+function Fire(x,y){
+  this.x=x; this.y=y; this.life=1; this.age=0;
+  this.embers=[];
+}
+Fire.prototype.tick=function(){
+  this.age++;
+  // Add new embers randomly
+  if(Math.random()<0.4){
+    this.embers.push({
+      x:this.x+(Math.random()-0.5)*20,
+      y:this.y+(Math.random()-0.5)*10,
+      vx:(Math.random()-0.5)*1.5,
+      vy:-(Math.random()*2+1),
+      life:1,
+      size:Math.random()*5+2,
+      col:Math.random()<0.5?"#ff4400":Math.random()<0.5?"#ff8800":"#ffcc00"
+    });
+  }
+  this.embers.forEach(function(e){
+    e.x+=e.vx; e.y+=e.vy; e.vy+=0.05; e.life-=0.025;
+  });
+  this.embers=this.embers.filter(function(e){return e.life>0;});
+};
+Fire.prototype.draw=function(){
+  var x=this.x, y=this.y;
+  // Smoke
+  for(var i=0;i<3;i++){
+    var sr=8+i*6, sa=0.06-i*0.015;
+    ctx.save();ctx.globalAlpha=sa*(0.5+Math.sin(this.age*0.05+i)*0.3);
+    ctx.fillStyle="#888";
+    ctx.beginPath();ctx.arc(x+(Math.sin(this.age*0.03+i)*8),y-20-i*12,sr,0,Math.PI*2);
+    ctx.fill();ctx.restore();
+  }
+  // Base glow
+  ctx.save();
+  var grad=ctx.createRadialGradient(x,y,0,x,y,22);
+  grad.addColorStop(0,"rgba(255,100,0,0.7)");
+  grad.addColorStop(0.5,"rgba(255,50,0,0.3)");
+  grad.addColorStop(1,"rgba(255,0,0,0)");
+  ctx.fillStyle=grad;
+  ctx.beginPath();ctx.ellipse(x,y,22,12,0,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Flame tongues
+  var t=this.age*0.08;
+  [[0,18],[- 8,14],[8,14],[-4,20],[4,20]].forEach(function(fl,i){
+    var fx=fl[0], fh=fl[1];
+    var wobble=Math.sin(t+i*1.3)*4;
+    ctx.save();
+    var fg=ctx.createLinearGradient(x+fx,y,x+fx+wobble,y-fh);
+    fg.addColorStop(0,"rgba(255,80,0,0.9)");
+    fg.addColorStop(0.5,"rgba(255,180,0,0.7)");
+    fg.addColorStop(1,"rgba(255,240,0,0)");
+    ctx.fillStyle=fg;
+    ctx.beginPath();
+    ctx.moveTo(x+fx-4,y);
+    ctx.quadraticCurveTo(x+fx+wobble-6,y-fh*0.5,x+fx+wobble,y-fh);
+    ctx.quadraticCurveTo(x+fx+wobble+6,y-fh*0.5,x+fx+8,y);
+    ctx.closePath();ctx.fill();ctx.restore();
+  });
+  // Embers
+  this.embers.forEach(function(e){
+    ctx.save();ctx.globalAlpha=e.life;
+    gw(e.col,6);ctx.fillStyle=e.col;
+    ctx.beginPath();ctx.arc(e.x,e.y,e.size*e.life,0,Math.PI*2);ctx.fill();ng();
+    ctx.restore();
+  });
+};
+
+function Boom(x,y){
+  this.x=x;this.y=y;this.r=0;this.life=1;
+  this.pts=[];
+  for(var i=0;i<26;i++){
+    var cols=[R,Y,"#ff8800","#ff6600"];
+    this.pts.push({vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,x:x,y:y,life:1,col:cols[Math.floor(Math.random()*4)]});
+  }
+}
+Boom.prototype.tick=function(){
+  this.life-=0.02;this.r+=6;
+  for(var i=0;i<this.pts.length;i++){
+    var p=this.pts[i];p.x+=p.vx;p.y+=p.vy;p.life-=0.024;p.vy+=0.14;
+  }
+};
+Boom.prototype.draw=function(){
+  if(this.life<=0)return;
+  ctx.save();ctx.globalAlpha=this.life*0.4;gw(R,24);ctx.strokeStyle=R;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=this.life*0.2;ctx.fillStyle="#ff4400";
+  ctx.beginPath();ctx.arc(this.x,this.y,this.r*0.5,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  for(var i=0;i<this.pts.length;i++){
+    var p=this.pts[i];if(p.life<=0)continue;
+    ctx.save();ctx.globalAlpha=p.life;gw(p.col,6);ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  }
+};
+
+function Pulse(x,y,col){this.x=x;this.y=y;this.col=col;this.r=0;this.life=1;}
+Pulse.prototype.tick=function(){this.life-=0.025;this.r+=4;};
+Pulse.prototype.draw=function(){
+  if(this.life<=0)return;
+  ctx.save();ctx.globalAlpha=this.life*0.5;gw(this.col,6);ctx.strokeStyle=this.col;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.stroke();ng();ctx.restore();
+};
+
+function bub(x,y,txt,col,sub){
+  ctx.save();
+  ctx.fillStyle=col===G?"rgba(0,255,136,.14)":"rgba(255,51,51,.14)";
+  ctx.strokeStyle=col;ctx.lineWidth=2;gw(col,14);
+  ctx.beginPath();ctx.roundRect(x-74,y-24,148,38,7);ctx.fill();ctx.stroke();ng();
+  ctx.fillStyle=col;ctx.font='bold 15px "Courier New"';ctx.textAlign="center";ctx.fillText(txt,x,y);
+  if(sub){ctx.font='11px "Courier New"';ctx.fillText(sub,x,y+14);}
+  ctx.restore();
+}
+
+// ── Scenes ─────────────────────────────────────────────
+// [frames, label, cue_index, fn]
+// Frame counts based on speech duration + buffer at 24fps
+// Cue 0: ~5 words = 2.7s speech + 4s = 6.7s = 161fr  → scene 0+1 share cue 0
+// Cue 1: ~14 words = 7.6s + 4s = 11.6s = 278fr
+// Cue 2: ~7 words = 3.8s + 3s = 6.8s = 163fr
+// Cue 3: ~7 words = 3.8s + 3s = 6.8s = 163fr
+// Cue 4: ~30 words = 16s + 4s = 20s = 480fr
+// Cue 5: ~8 words = 4.3s + 3s = 7.3s = 175fr
+var SCENES=[
+  {fr:100, lbl:"СЦЕНА 1: КОНТРОЛЕР АКТИВУЄ CRYPTOTAG", cue:0, fn:function(){
+    S.phase="ctrl_show";
+    setSt("Контролер активує пристрій CryptoTag",Y);
+    addLog("> CryptoTag активовано","ly");
+    addLog("> Генерація алгоритму підпису...","ly");
+    addLog("> Підпис готовий","lg");
+  }},
+  {fr:161, lbl:"СЦЕНА 2: ПЕРЕДАЧА МОДУЛЯ ОПЕРАТОРУ", cue:-1, fn:function(){
+    S.phase="ctrl_to_op";
+    setSt("Контролер передає модуль оператору",Y);
+    addLog("> Передача модуля оператору","ly");
+  }},
+  {fr:240, lbl:"СЦЕНА 3: ВСТАНОВЛЕННЯ → БПЛА ЗА ФРОНТ", cue:1, fn:function(){
+    S.phase="handoff";
+    S.ctrlTag=false;S.opTag=true;
+    setSt("Оператор встановлює CT на БПЛА → за фронт",Y);
+    addLog("> Монтаж CT на БПЛА UA-7731","ly");
+    addLog("> Злітаю. Прямую за лінію фронту","lg");
+  }},
+  {fr:163, lbl:"СЦЕНА 4: РОЗВІДКА НА ВОРОЖІЙ СТОРОНІ", cue:2, fn:function(){
+    S.phase="recon";
+    setSt("Виконую розвідку у ворожому тилу",Y);
+    addLog("> Веду розвідку. Ворожі об&#700;єкти виявлено","ly");
+  }},
+  {fr:163, lbl:"СЦЕНА 5: ВОРОЖИЙ БПЛА ПЕРЕТИНАЄ ФРОНТ", cue:3, fn:function(){
+    S.phase="return";S.eneActive=true;
+    setSt("Увага! Ворожий БПЛА перетинає фронт!",R);
+    addLog("> ТРИВОГА: ворожий БПЛА!","lr");
+    addLog("> Він перетинає лінію фронту","lr");
+    addLog("> Повертаюсь на базу","lg");
+  }},
+  {fr:480, lbl:"СЦЕНА 6: IFF → СВІЙ / ЧУЖИЙ → ЗНИЩИТИ!", cue:-1, fn:function(){
+    S.phase="iff";
+    setSt("Запитувач IFF: ХТО ТИ?",B);
+    addLog("──────────────────","ly");
+    addLog("> IFF → [UA-7731]: ХТО ТИ?","lb");
+    // CUE 4: "Запитувач надсилає сигнал: Хто ти?"
+    speak(4);
+    // Query friendly
+    S.sQF=new Sig(RX,RY,S.px,S.py,B,"ХТО ТИ?",function(){
+      setTimeout(function(){
+        if(S.done)return;
+        addLog("> [UA-7731]: СВІЙ ✓","lg");
+        // CUE 5: "Наш відповідає. Свій!"
+        speakAfter(5, 800);
+        S.sRF=new Sig(S.px,S.py,RX,RY,G,"СВІЙ ✓",function(){
+          S.fOk=true;
+          addLog("> АВТЕНТИФІКАЦІЯ: УСПІХ","lg");
+          for(var i=0;i<3;i++){
+            (function(ii){setTimeout(function(){particles.push(new Pulse(S.px,S.py,G));},ii*130);})(i);
+          }
+        });
+      },350);
+    });
+    // Query enemy after delay
+    setTimeout(function(){
+      if(S.done)return;
+      addLog("> IFF → [???]: ХТО ТИ?","lb");
+      S.sQE=new Sig(RX,RY,S.ex,S.ey,B,"ХТО ТИ?",function(){
+        setTimeout(function(){
+          if(S.done)return;
+          addLog("> [???]: ТИША — ЧУЖИЙ!","lr");
+          // CUE 6: "Ворожий мовчить. Чужий!"
+          speakAfter(6, 800);
+          S.sRE=new Sig(S.ex,S.ey,RX,RY,R,"ЧУЖИЙ ✗",function(){
+            S.eExp=true;
+            addLog("> Надсилаю команду: ЗНИЩИТИ!","lr");
+            setSt("ЧУЖИЙ! Запитувач — ЗНИЩИТИ!",R);
+            // CUE 7: "Знищити!" — після "Чужий!" через 1.2с
+            speakAfter(7, 1200);
+            setTimeout(function(){
+              if(S.done)return;
+              S.sFire=new FSig(RX,RY,ZX,ZY,function(){
+                addLog("> Зенітка: наказ отримано!","lr");
+                S.zAim=true;
+              });
+            },300);
+          });
+        },400);
+      });
+    },700);
+  }},
+  {fr:175, lbl:"СЦЕНА 7: ЗНИЩЕНО — МІСІЯ ВИКОНАНА", cue:8, fn:function(){
+    S.phase="endgame";
+  }}
+];
+
+// ── State ──────────────────────────────────────────────
+var S,particles,explosions,raf,ft,ra,landed,fired,scIdx,scTimer;
+
+function moveTo(tx,ty,sp){
+  var dx=tx-S.px,dy=ty-S.py,d=Math.sqrt(dx*dx+dy*dy);
+  if(d<sp){S.px=tx;S.py=ty;return true;}
+  S.px+=dx/d*sp;S.py+=dy/d*sp;return false;
+}
+function chaseEnemy(){
+  if(S.eDead)return;
+  var tx=S.px+60,ty=EYC;
+  var dx=tx-S.ex,dy=ty-S.ey,d=Math.sqrt(dx*dx+dy*dy);
+  if(d>4){S.ex+=dx/d*1.6;S.ey+=dy/d*1.6;}
+}
+
+function startScene(i){
+  if(i>=SCENES.length)return;
+  scIdx=i;scTimer=SCENES[i].fr;
+  setLbl(SCENES[i].lbl);
+  if(SCENES[i].cue>=0)speak(SCENES[i].cue);
+  SCENES[i].fn();
+}
+
+function init(){
+  cancelAnimationFrame(raf);
+  synth.cancel();
+  particles=[];explosions=[];
+  ft=0;ra=0;landed=false;fired=false;
+  S={
+    phase:"ctrl_show",
+    ctrlTag:true,opTag:false,droneTag:false,
+    tAnim:0,cAnim:0,
+    px:PHX,py:PHY,pdir:1,
+    eneActive:false,ex:EX0,ey:EY0,eDead:false,
+    sQF:null,sRF:null,sQE:null,sRE:null,sFire:null,
+    shell:null,mFlash:0,
+    fOk:false,eExp:false,zAim:false,
+    zAng:-Math.PI*0.7,
+    fire:null,
+    finalOk:false,done:false
+  };
+  document.getElementById("restartBtn").style.display="none";
+  document.getElementById("le").innerHTML="";
+  addLog("> СИСТЕМА CRYPTOTAG","ly");
+  addLog("> IFF АЛГОРИТМ ACTIVE","ly");
+  addLog("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500","ly");
+  startScene(0);
+  loop();
+}
+
+// ── Scoreboard ───────────────────────────────────────────
+function drawScoreboard(){
+  if(!S.eDead)return;
+  var sw=400, sh=210;
+  var sx=Math.max(10,(W-sw)/2), sy=H-sh-8;
+
+  ctx.save();
+  // Panel background
+  ctx.fillStyle="rgba(2,10,20,.92)";
+  ctx.beginPath();ctx.roundRect(sx,sy,sw,sh,8);ctx.fill();
+  // Border
+  gw(R,12);ctx.strokeStyle=R;ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(sx,sy,sw,sh,8);ctx.stroke();ng();
+
+  // Header
+  ctx.fillStyle=R;
+  ctx.beginPath();ctx.roundRect(sx,sy,sw,36,{upperLeft:8,upperRight:8,lowerLeft:0,lowerRight:0});ctx.fill();
+  ctx.fillStyle="#fff";ctx.font='bold 14px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("▌ ОНЛАЙН-ТАБЛО  «ПІДРАХУЙКА» ▐",sx+sw/2,sy+14);
+  ctx.fillStyle="rgba(255,200,200,.9)";ctx.font='13px "Courier New"';
+  ctx.fillText("ЗВІТ УГРУПОВАННЯ СБС",sx+sw/2,sy+28);
+
+  // Stats rows
+  var stats=[
+    {icon:"🔴", label:"Знищено БПЛА ворога",    val:"1",   col:R},
+    {icon:"✅", label:"БПЛА повернулись на базу", val:"1",   col:G},
+    {icon:"🛡", label:"Місій виконано",           val:"1",   col:G},
+    {icon:"🔐", label:"IFF перевірок проведено",  val:"2",   col:B},
+    {icon:"⚡", label:"Загроз нейтралізовано",    val:"1",   col:Y},
+  ];
+
+  var rowY=sy+50;
+  stats.forEach(function(s){
+    // Row bg
+    ctx.fillStyle="rgba(255,255,255,.03)";
+    ctx.fillRect(sx+8,rowY-14,sw-16,26);
+    // Icon + label
+    ctx.fillStyle="rgba(200,200,200,.8)";ctx.font='14px "Courier New"';ctx.textAlign="left";
+    ctx.fillText(s.icon+" "+s.label,sx+16,rowY+2);
+    // Value
+    gw(s.col,8);ctx.fillStyle=s.col;ctx.font='bold 15px "Courier New"';ctx.textAlign="right";
+    ctx.fillText(s.val,sx+sw-16,rowY+2);ng();
+    rowY+=30;
+  });
+
+  // Footer
+  ctx.fillStyle="rgba(0,255,136,.4)";ctx.font='11px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("CRYPTOTAG IFF SYSTEM  •  UA-7731  •  МІСІЯ ЗАВЕРШЕНА",sx+sw/2,sy+sh-8);
+  ctx.restore();
+}
+
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  drawBg();drawFront();
+  ft+=0.04;
+  var flt=Math.sin(ft)*3.5;
+
+  // ctrl_to_op
+  if(S.phase==="ctrl_to_op"){
+    S.cAnim=Math.min(1,S.cAnim+0.009);
+    if(S.cAnim>=0.99){S.ctrlTag=false;S.opTag=true;}
+  }
+  // handoff op→drone
+  if(S.phase==="handoff"){
+    S.tAnim=Math.min(1,S.tAnim+0.006);
+    if(S.tAnim>=0.99){S.droneTag=true;S.opTag=false;S.phase="flyout";}
+  }
+  // flyout
+  if(S.phase==="flyout"){
+    moveTo(PRX,PRY,2.4);S.pdir=1;
+  }
+  // recon
+  if(S.phase==="recon"){
+    ra+=0.022;
+    S.px=PRX-40+Math.cos(ra)*55;S.py=PRY+Math.sin(ra)*28;
+    S.pdir=Math.cos(ra)>=0?1:-1;
+  }
+  // return
+  if(S.phase==="return"){
+    if(S.py>PRY2)S.py=Math.max(PRY2,S.py-2);
+    moveTo(340,PRY2,2.0);S.pdir=-1;
+    if(S.eneActive)chaseEnemy();
+  }
+  // iff
+  if(S.phase==="iff"){
+    moveTo(210,PRY2,1.1);S.pdir=-1;
+    if(!S.eDead)chaseEnemy();
+    if(S.sQF){S.sQF.x2=S.px;S.sQF.y2=S.py;}
+    if(S.sRF){S.sRF.x1=S.px;S.sRF.y1=S.py;}
+    if(S.sQE&&!S.eDead){S.sQE.x2=S.ex;S.sQE.y2=S.ey;}
+    if(S.sRE&&!S.eDead){S.sRE.x1=S.ex;S.sRE.y1=S.ey;}
+  }
+  // endgame
+  if(S.phase==="endgame"){
+    if(!landed){
+      if(moveTo(PHX,PHY,0.85)){
+        landed=true;S.finalOk=true;S.pdir=-1;
+        setSt("СВІЙ ПОВЕРНУВСЯ ДОДОМУ \u2713",G);
+        addLog("> Посадка. Місія виконана!","lg");
+      }
+      S.pdir=-1;
+    }
+    if(S.zAim&&!fired){
+      var dx2=S.ex-ZX,dy2=S.ey-(ZY+4);
+      var targ=Math.atan2(dy2,dx2);
+      S.zAng+=(targ-S.zAng)*0.07;
+      if(Math.abs(targ-S.zAng)<0.07&&!S.shell){
+        fired=true;S.mFlash=14;
+        addLog("> ВОГОНЬ!","lr");
+        setSt("ЗЕНІТКА — ВОГОНЬ!",R);
+        var bx=ZX+Math.cos(S.zAng)*38,by=(ZY+4)+Math.sin(S.zAng)*38;
+        S.shell=new Shell(bx,by,S.ex,S.ey,function(){
+          explosions.push(new Boom(S.ex,S.ey));
+          explosions.push(new Boom(S.ex+10,S.ey-10));
+          S.eDead=true;S.done=true;
+          // Прибираємо всі сигнали після знищення
+          S.sQF=null;S.sRF=null;S.sQE=null;S.sRE=null;S.sFire=null;
+          // Запускаємо вогнище на місці вибуху
+          S.fire=new Fire(S.ex, S.ey);
+          addLog("> ЦІЛЬ ЗНИЩЕНО \u2713","lr");
+          setTimeout(function(){setSt("ЗАГРОЗА НЕЙТРАЛІЗОВАНА \u2713",R);},400);
+          document.getElementById("restartBtn").style.display="inline-block";
+        });
+      }
+    }
+    if(!S.eDead&&S.eneActive)chaseEnemy();
+    if(S.mFlash>0)S.mFlash--;
+    if(S.shell)S.shell.tick();
+  }
+
+  // tick signals
+  var sigs=[S.sQF,S.sRF,S.sQE,S.sRE,S.sFire];
+  for(var i=0;i<sigs.length;i++){if(sigs[i])sigs[i].tick();}
+  particles=particles.filter(function(p){return p.life>0;});
+  for(var i=0;i<particles.length;i++)particles[i].tick();
+  explosions=explosions.filter(function(e){return e.life>0;});
+  for(var i=0;i<explosions.length;i++)explosions[i].tick();
+  if(S.fire)S.fire.tick();
+
+  // ── DRAW ──
+  drawPerson(CX,CY,S.ctrlTag,"КОНТРОЛЕР Т");
+  drawPerson(OX,OY,S.opTag,"ОПЕРАТОР");
+
+  // connector
+  ctx.save();ctx.strokeStyle="rgba(255,204,0,.2)";ctx.lineWidth=1;ctx.setLineDash([3,5]);
+  ctx.beginPath();ctx.moveTo(CX,CY+26);ctx.lineTo(OX,OY-38);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+
+  // arc ctrl→op
+  if(S.phase==="ctrl_to_op"&&S.cAnim>0){
+    var t=S.cAnim;
+    var sx=CX,sy=CY-16,ex=OX,ey=OY-16;
+    var tx=sx+(ex-sx)*t,ty=sy+(ey-sy)*t-38*Math.sin(t*Math.PI);
+    ctx.save();gw(G,10);ctx.strokeStyle=G;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(sx,sy);ctx.quadraticCurveTo(sx+55,sy-28,tx,ty);
+    ctx.stroke();ctx.setLineDash([]);ng();
+    gw(G,12);ctx.fillStyle=G;ctx.fillRect(tx-7,ty-5,14,10);ng();
+    ctx.strokeStyle=G;ctx.lineWidth=1;ctx.strokeRect(tx-7,ty-5,14,10);
+    ctx.fillStyle="#000";ctx.font='9px "Courier New"';ctx.textAlign="center";ctx.fillText("CT",tx,ty+3);
+    ctx.restore();
+  }
+  // arc op→drone
+  if(S.phase==="handoff"&&S.tAnim>0){
+    var t2=S.tAnim;
+    var sx2=OX,sy2=OY-16,ex2=S.px,ey2=S.py;
+    var tx2=sx2+(ex2-sx2)*t2,ty2=sy2+(ey2-sy2)*t2-52*Math.sin(t2*Math.PI);
+    ctx.save();gw(G,10);ctx.strokeStyle=G;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(sx2,sy2);ctx.quadraticCurveTo((sx2+ex2)/2,sy2-70,tx2,ty2);
+    ctx.stroke();ctx.setLineDash([]);ng();
+    gw(G,12);ctx.fillStyle=G;ctx.fillRect(tx2-7,ty2-5,14,10);ng();
+    ctx.strokeStyle=G;ctx.lineWidth=1;ctx.strokeRect(tx2-7,ty2-5,14,10);
+    ctx.fillStyle="#000";ctx.font='9px "Courier New"';ctx.textAlign="center";ctx.fillText("CT",tx2,ty2+3);
+    ctx.restore();
+  }
+
+  drawREB(RX,RY);
+  drawZenith(ZX,ZY,S.zAng);
+
+  // flash
+  if(S.mFlash>0){
+    var fbx=ZX+Math.cos(S.zAng)*38,fby=(ZY+4)+Math.sin(S.zAng)*38;
+    ctx.save();ctx.globalAlpha=S.mFlash/14;gw(Y,40);ctx.fillStyle=Y;
+    ctx.beginPath();ctx.arc(fbx,fby,20,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  }
+  if(S.shell)S.shell.draw();
+
+  // enemy
+  if(S.eneActive&&!S.eDead){
+    drawEnemy(S.ex,S.ey+flt);
+    if(S.eExp){
+      var qpts=[[-26,0],[26,0]];
+      for(var qi=0;qi<qpts.length;qi++){
+        var qa=ft*1.7+qi*Math.PI;
+        ctx.save();ctx.fillStyle=R;ctx.font='bold 15px "Courier New"';
+        ctx.textAlign="center";ctx.globalAlpha=0.5+Math.sin(qa)*0.4;
+        gw(R,8);ctx.fillText("!",S.ex+Math.cos(qa)*26,S.ey+flt-24);ng();ctx.restore();
+      }
+    }
+  }
+
+  // friendly plane (show from scene 2 onwards)
+  if(scIdx>=2||S.tAnim>0.15){
+    drawPlane(S.px,S.py+flt,S.pdir,S.droneTag,1);
+  }
+
+  // signals
+  for(var i=0;i<sigs.length;i++){if(sigs[i])sigs[i].draw();}
+  for(var i=0;i<particles.length;i++)particles[i].draw();
+  for(var i=0;i<explosions.length;i++)explosions[i].draw();
+  if(S.fire)S.fire.draw();
+  drawScoreboard();
+
+  // bubbles
+  // "ЧУЖИЙ" — показуємо тільки поки живий
+  if(S.eExp&&!S.eDead)bub(S.ex,S.ey-52,"ЧУЖИЙ \u2717",R,"знищити!");
+  // "МІСІЯ ВИКОНАНА" — під літачком поряд з вогнем, після знищення
+  if(S.finalOk){
+    var mx=S.px, my=S.py+55;
+    ctx.save();
+    ctx.fillStyle="rgba(0,20,10,.85)";
+    ctx.beginPath();ctx.roundRect(mx-90,my-20,180,36,7);ctx.fill();
+    gw(G,16);ctx.strokeStyle=G;ctx.lineWidth=2;
+    ctx.beginPath();ctx.roundRect(mx-90,my-20,180,36,7);ctx.stroke();ng();
+    ctx.fillStyle=G;ctx.font='bold 15px "Courier New"';ctx.textAlign="center";
+    ctx.fillText("\u2713 МІСІЯ ВИКОНАНА",mx,my);
+    ctx.font='11px "Courier New"';ctx.fillStyle="rgba(0,255,136,.7)";
+    ctx.fillText("повернувся додому",mx,my+16);
+    ctx.restore();
+  }
+
+  // scene timer
+  if(!S.done){
+    scTimer--;
+    if(scTimer<=0&&scIdx<SCENES.length-1)startScene(scIdx+1);
+  }
+
+  raf=requestAnimationFrame(loop);
+}
+
+window.addEventListener("load",function(){init();});
+window.init=init;
+})();
+</script>
+</body>
+</html>
