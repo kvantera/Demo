@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CryptoTag — Демо система</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060e18;font-family:"Courier New",monospace;width:100vw;min-height:100vh;overflow-x:hidden;display:flex;flex-direction:column;align-items:center;padding:20px 16px 30px}
+body::before{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(0,180,100,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,100,.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+.logo{font-size:clamp(20px,3.5vw,42px);font-weight:900;letter-spacing:8px;color:#00ff88;text-shadow:0 0 30px #00ff88;margin-bottom:4px;text-align:center}
+.logo span{color:#ffcc00;text-shadow:0 0 20px #ffcc00}
+.tagline{font-size:clamp(8px,1.2vw,12px);letter-spacing:5px;color:rgba(0,255,136,.5);text-align:center;margin-bottom:30px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;width:100%;max-width:1100px}
+.card{background:rgba(0,10,20,.85);border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;text-decoration:none;display:block}
+.card:hover{transform:translateY(-5px)}
+.c1{border:1px solid rgba(0,255,136,.25)}.c1:hover{border-color:rgba(0,255,136,.7);box-shadow:0 0 30px rgba(0,255,136,.12)}
+.c2{border:1px solid rgba(255,51,51,.25)}.c2:hover{border-color:rgba(255,51,51,.7);box-shadow:0 0 30px rgba(255,51,51,.12)}
+.c3{border:1px solid rgba(0,207,255,.25)}.c3:hover{border-color:rgba(0,207,255,.7);box-shadow:0 0 30px rgba(0,207,255,.12)}
+.c4{border:1px solid rgba(255,204,0,.25)}.c4:hover{border-color:rgba(255,204,0,.7);box-shadow:0 0 30px rgba(255,204,0,.12)}
+.c5{border:1px solid rgba(200,0,255,.25)}.c5:hover{border-color:rgba(200,0,255,.7);box-shadow:0 0 30px rgba(200,0,255,.12)}
+.c6{border:1px solid rgba(255,136,0,.25)}.c6:hover{border-color:rgba(255,136,0,.7);box-shadow:0 0 30px rgba(255,136,0,.12)}
+.ch{padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:12px}
+.cn{font-size:32px;font-weight:900;min-width:44px;line-height:1}
+.c1 .cn{color:#00ff88}.c2 .cn{color:#ff3333}.c3 .cn{color:#00cfff}.c4 .cn{color:#ffcc00}.c5 .cn{color:#cc00ff}.c6 .cn{color:#ff8800}
+.cs{font-size:8px;letter-spacing:3px;color:rgba(255,255,255,.4);margin-bottom:2px}
+.ct{font-size:clamp(12px,1.5vw,15px);font-weight:bold;line-height:1.3}
+.c1 .ct{color:#00ff88}.c2 .ct{color:#ff3333}.c3 .ct{color:#00cfff}.c4 .ct{color:#ffcc00}.c5 .ct{color:#cc00ff}.c6 .ct{color:#ff8800}
+.cb{padding:12px 18px 16px}
+.cd{font-size:clamp(9px,1.1vw,11px);color:rgba(200,210,220,.7);line-height:1.65;margin-bottom:10px}
+.steps{list-style:none;margin-bottom:12px}
+.steps li{font-size:clamp(8px,1vw,10px);color:rgba(170,190,210,.65);padding:2px 0 2px 16px;position:relative;line-height:1.5}
+.steps li::before{content:"▸";position:absolute;left:0}
+.c1 .steps li::before{color:#00ff88}.c2 .steps li::before{color:#ff3333}.c3 .steps li::before{color:#00cfff}
+.c4 .steps li::before{color:#ffcc00}.c5 .steps li::before{color:#cc00ff}.c6 .steps li::before{color:#ff8800}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;font-size:9px;font-weight:bold;letter-spacing:2px;margin-bottom:10px}
+.c1 .badge{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.4);color:#00ff88}
+.c2 .badge{background:rgba(255,51,51,.1);border:1px solid rgba(255,51,51,.4);color:#ff3333}
+.c3 .badge{background:rgba(0,207,255,.1);border:1px solid rgba(0,207,255,.4);color:#00cfff}
+.c4 .badge{background:rgba(255,204,0,.1);border:1px solid rgba(255,204,0,.4);color:#ffcc00}
+.c5 .badge{background:rgba(200,0,255,.1);border:1px solid rgba(200,0,255,.4);color:#cc00ff}
+.c6 .badge{background:rgba(255,136,0,.1);border:1px solid rgba(255,136,0,.4);color:#ff8800}
+.launch{margin-top:6px;width:100%;padding:9px;border:none;border-radius:5px;cursor:pointer;font-family:"Courier New",monospace;font-size:10px;font-weight:bold;letter-spacing:3px;transition:all .2s}
+.c1 .launch{background:rgba(0,255,136,.12);color:#00ff88;border:1px solid rgba(0,255,136,.45)}
+.c2 .launch{background:rgba(255,51,51,.12);color:#ff3333;border:1px solid rgba(255,51,51,.45)}
+.c3 .launch{background:rgba(0,207,255,.12);color:#00cfff;border:1px solid rgba(0,207,255,.45)}
+.c4 .launch{background:rgba(255,204,0,.12);color:#ffcc00;border:1px solid rgba(255,204,0,.45)}
+.c5 .launch{background:rgba(200,0,255,.12);color:#cc00ff;border:1px solid rgba(200,0,255,.45)}
+.c6 .launch{background:rgba(255,136,0,.12);color:#ff8800;border:1px solid rgba(255,136,0,.45)}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;animation:pulse 2s infinite}
+.dg{background:#00ff88}.dr{background:#ff3333;animation-delay:.3s}.db{background:#00cfff;animation-delay:.6s}
+.dy{background:#ffcc00;animation-delay:.9s}.dp{background:#cc00ff;animation-delay:1.2s}.do{background:#ff8800;animation-delay:1.5s}
+.footer{margin-top:28px;font-size:clamp(8px,1vw,10px);letter-spacing:3px;color:rgba(0,255,136,.3);text-align:center}
+.footer span{color:rgba(255,204,0,.4)}
+</style>
+</head>
+<body>
+<div class="logo">◈ CRYPTO<span>TAG</span> ◈</div>
+<div class="tagline">POST-QUANTUM IFF AUTHENTICATION SYSTEM · W-OTS+ · SHA-512</div>
+<div class="grid">
+<a class="card c1" href="cryptotag_scenario1.html">
+  <div class="ch"><div class="cn">01</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">Успішна автентифікація</div></div></div>
+  <div class="cb">
+    <p class="cd">Контролер налаштовує систему. Оператор передає ключ на БПЛА. Запитувач перевіряє: Свій чи Чужий?</p>
+    <ul class="steps"><li>Білий ключ → Запитувач</li><li>Жовтий ключ → БПЛА</li><li>IFF: Хто ти? → Свій ✓</li><li>Ворожий → Чужий ✗ → Знищити</li><li>Зелений ключ — нова сесія</li></ul>
+    <div class="badge"><span class="dot dg"></span>СВІЙ — ЗАХИСТ АКТИВНИЙ</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+<a class="card c2" href="cryptotag_scenario2_14.html">
+  <div class="ch"><div class="cn">02</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">Спроба підміни ключа</div></div></div>
+  <div class="cb">
+    <p class="cd">Ворог збиває наш БПЛА і захоплює жовтий ключ. Намагається використати в своєму літаку.</p>
+    <ul class="steps"><li>Наш БПЛА збито ворожою зенітою</li><li>Ворог захоплює жовтий ключ</li><li>IFF: старий ключ → відхилено</li><li>Q(H(yᵢ)) ≠ J[i] · TAi прострочено</li><li>Захоплений ключ: марний</li></ul>
+    <div class="badge"><span class="dot dr"></span>REPLAY-АТАКА ВІДХИЛЕНА</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+<a class="card c3" href="cryptotag_sc3_4.html">
+  <div class="ch"><div class="cn">03</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">Масштабування: 4 БПЛА</div></div></div>
+  <div class="cb">
+    <p class="cd">Один запитувач одночасно перевіряє 4 БПЛА. Паралельна автентифікація цілого угруповання.</p>
+    <ul class="steps"><li>4 БПЛА отримують унікальні ключі</li><li>Один широкомовний сигнал xᵗ</li><li>Кожен відповідає паралельно</li><li>Всі перевірені за &lt;60мс</li><li>До 1000 дронів/секунду</li></ul>
+    <div class="badge"><span class="dot db"></span>4/4 БПЛА АВТЕНТИФІКОВАНО</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+<a class="card c4" href="cryptotag_sc4.html">
+  <div class="ch"><div class="cn">04</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">РЕБ атака: глушіння каналу</div></div></div>
+  <div class="cb">
+    <p class="cd">Ворог вмикає широкосмугове глушіння. Звичайні системи відмовляють. CryptoTag продовжує роботу.</p>
+    <ul class="steps"><li>Нормальна IFF перевірка</li><li>Ворожий РЕБ активується</li><li>Канал зашумлений — сигнал спотворено</li><li>CryptoTag: підпис в каналі телеметрії</li><li>Валідний підпис попри РЕБ ✓</li></ul>
+    <div class="badge"><span class="dot dy"></span>СТІЙКІСТЬ ДО РЕБ ПІДТВЕРДЖЕНА</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+<a class="card c5" href="cryptotag_sc5.html">
+  <div class="ch"><div class="cn">05</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">Підробка підпису W-OTS+</div></div></div>
+  <div class="cb">
+    <p class="cd">Ворожий хакер перехоплює IFF обмін і намагається підробити підпис. Математично неможливо.</p>
+    <ul class="steps"><li>Хакер перехоплює пакет {xᵗ, yᵢ}</li><li>Намагається знайти skᵢᵗ⁺¹</li><li>H(x) однонаправлена: 2^256 операцій</li><li>Q(H(y_fake)) ≠ J[i] → відхилено</li><li>Квантово-стійкий SHA-512</li></ul>
+    <div class="badge"><span class="dot dp"></span>ПІДРОБКА: МАТЕМАТИЧНО НЕМОЖЛИВА</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+<a class="card c6" href="cryptotag_sc6.html">
+  <div class="ch"><div class="cn">06</div><div><div class="cs">СЦЕНАРІЙ</div><div class="ct">НРК + авто-турель: IFF захист</div></div></div>
+  <div class="cb">
+    <p class="cd">Наш БПЛА в зоні ураження зенітки. IFF автоматично: Свій — не стріляти. Чужий — знищити.</p>
+    <ul class="steps"><li>БПЛА входить в зону ураження</li><li>Зенітка: IFF запит → Хто ти?</li><li>Свій ✓ → зенітка опускає дуло</li><li>Ворожий → Чужий ✗ → Вогонь!</li><li>Дружній вогонь: нуль</li></ul>
+    <div class="badge"><span class="dot do"></span>ДРУЖНІЙ ВОГОНЬ ВИКЛЮЧЕНО</div>
+    <button class="launch">▶ ЗАПУСТИТИ</button>
+  </div>
+</a>
+</div>
+<div class="footer"><span>KVANTERA</span> · TOV "LYUKS UAV" · IFF ALGORITHM W-OTS+ · UKRAINE</div>
+</body>
+</html>

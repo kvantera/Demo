@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CryptoTag — Сценарій 2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060e18;font-family:"Courier New",monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100vw;min-height:100vh;overflow:hidden}
+body::before{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(0,180,100,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,100,.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+#title{font-size:clamp(11px,1.8vw,18px);font-weight:900;letter-spacing:5px;color:#ff3333;text-shadow:0 0 24px #ff3333;margin-bottom:2px;text-align:center;white-space:nowrap}
+#subtitle{font-size:clamp(8px,1.1vw,10px);letter-spacing:3px;color:rgba(255,51,51,.6);text-align:center;margin-bottom:4px}
+#lbl{font-size:clamp(8px,1.2vw,11px);letter-spacing:3px;color:#ffcc00;text-align:center;margin-bottom:5px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95vw}
+#wrap{position:relative;width:min(960px,100vw);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;background:#07111c;border:1px solid rgba(255,51,51,.2);border-radius:4px;box-shadow:0 0 50px rgba(255,51,51,.07)}
+/* log removed */
+.ll{opacity:0;animation:fi .3s forwards}
+.lg{color:#00ff88}.lr{color:#ff3333}.ly{color:#ffcc00}.lb{color:#00cfff}.lw{color:#ffffff}
+@keyframes fi{to{opacity:1}}
+/* Explain panel */
+#explain{position:absolute;right:8px;top:8px;width:clamp(170px,26%,240px);background:rgba(255,255,255,.96);border:2px solid #003366;border-radius:5px;overflow:hidden;pointer-events:none;display:none}
+#explain-head{background:#003366;color:#fff;font-weight:bold;padding:5px 9px;font-size:clamp(8px,1.2vw,11px);letter-spacing:1px}
+#explain-body{padding:7px 9px;color:#000033;line-height:1.65;font-size:clamp(7px,1.1vw,10px)}
+#status{margin-top:5px;font-size:clamp(8px,1.4vw,11px);letter-spacing:2px;text-align:center;min-height:18px;transition:color .3s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95vw}
+#ctrl{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.cbtn{background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:"Courier New",monospace;font-size:10px;letter-spacing:2px;padding:6px 16px;cursor:pointer;border-radius:2px;transition:all .2s}
+#pauseBtn{min-width:110px}
+.cbtn:hover{background:rgba(0,255,136,.12)}
+.cbtn.red{border-color:#ff3333;color:#ff3333}
+.cbtn.red:hover{background:rgba(255,51,51,.12)}
+#restartBtn{display:none}
+</style>
+</head>
+<body>
+<div id="title">◈ CRYPTOTAG — СЦЕНАРІЙ 2: СПРОБА ПІДМІНИ ◈</div>
+<div id="subtitle">ЗАХОПЛЕНИЙ КЛЮЧ · ПОВТОРНА АТАКА · ВІДХИЛЕНО АЛГОРИТМОМ</div>
+<div id="lbl">ІНІЦІАЛІЗАЦІЯ...</div>
+<div id="wrap">
+  <canvas id="c" width="960" height="540"></canvas>
+  <!-- log removed -->
+  <div id="explain"><div id="explain-head">💡 ПОЯСНЕННЯ</div><div id="explain-body"></div></div>
+  <div id="le" style="display:none"></div>
+</div>
+<div id="status"></div>
+<div id="ctrl">
+  <button class="cbtn red" id="restartBtn" onclick="init()">▶ ПЕРЕЗАПУСТИТИ</button>
+  <button class="cbtn" id="pauseBtn" onclick="togglePause()">⏸ ПАУЗА</button>
+  <button class="cbtn" onclick="location.href='index.html'">◀ НАЗАД</button>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById("c"),ctx=cv.getContext("2d");
+var W=960,H=540;
+var G="#00ff88",R="#ff3333",Y="#ffcc00",B="#00cfff",WH="#ffffff";
+
+// ── Positions ──
+var FRONTY=355;
+var CX=95,CY=115,OX=95,OY=228;
+var RX=480,RY=180;
+var ZX=640,ZY=170;       // our zenith
+var EZEN_X=780,EZEN_Y=430; // enemy zenith (on enemy side)
+var PHX=210,PHY=195;      // plane home
+var PRX=680,PRY=420;       // plane recon spot
+
+// ── Utils ──
+function addLog(t,c){var el=document.getElementById("le");if(!el)return;var d=document.createElement("div");d.className="ll "+c;d.textContent=t;el.appendChild(d);if(el.children.length>14)el.removeChild(el.firstChild);}
+function setLbl(t){document.getElementById("lbl").textContent=t;}
+function setSt(t,c){var s=document.getElementById("status");s.textContent=t;s.style.color=c;}
+function showEx(title,body){var p=document.getElementById("explain");document.getElementById("explain-head").textContent="💡 "+title;document.getElementById("explain-body").textContent=body;p.style.display="block";}
+function hideEx(){document.getElementById("explain").style.display="none";}
+function gw(c,b){ctx.shadowColor=c;ctx.shadowBlur=b;}
+function ng(){ctx.shadowColor="transparent";ctx.shadowBlur=0;}
+function addJournal(entry){
+  if(!S||!S.journal)return;
+  var now=new Date();
+  var ts=now.getHours().toString().padStart(2,"0")+":"+now.getMinutes().toString().padStart(2,"0")+":"+now.getSeconds().toString().padStart(2,"0");
+  S.journal.push({time:ts,text:entry,t:Date.now()});
+  if(S.journal.length>6)S.journal.shift();
+}
+
+// ── Background ──
+function drawBg(){
+  ctx.fillStyle="rgba(0,255,136,.032)";ctx.fillRect(0,0,W,FRONTY);
+  ctx.fillStyle="rgba(255,51,51,.032)";ctx.fillRect(0,FRONTY,W,H-FRONTY);
+  ctx.strokeStyle="rgba(0,200,120,.04)";ctx.lineWidth=1;
+  for(var x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(var y=0;y<H;y+=44){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.fillStyle="rgba(0,255,136,.018)";ctx.fillRect(0,(Date.now()/18)%H,W,2);
+}
+function drawFront(){
+  ctx.save();ctx.strokeStyle="#ff8800";ctx.lineWidth=2.5;gw("#ff8800",12);
+  ctx.setLineDash([16,8]);ctx.beginPath();ctx.moveTo(0,FRONTY);ctx.lineTo(W,FRONTY);ctx.stroke();
+  ctx.setLineDash([]);ng();
+  ctx.font='bold 10px "Courier New"';
+  ctx.fillStyle="rgba(0,255,136,.55)";ctx.textAlign="left";ctx.fillText("▲  НАША СТОРОНА",14,FRONTY-10);
+  ctx.fillStyle="rgba(255,51,51,.55)";ctx.fillText("▼  ВОРОЖА СТОРОНА",14,FRONTY+20);
+  ctx.fillStyle="rgba(255,136,0,.7)";ctx.font='9px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("— — —  ЛІНІЯ ФРОНТУ  — — —",W/2,FRONTY-5);
+  ctx.restore();
+}
+
+// ── People ──
+function drawPerson(x,y,lbl,col){
+  col=col||Y;
+  ctx.save();gw(col,8);ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y-28,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.stroke();
+  ctx.strokeStyle=col===Y?G:"#ff6600";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y-34,10,Math.PI,0);ctx.stroke();
+  ctx.strokeStyle=col;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,y-19);ctx.lineTo(x,y+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-11,y-12);ctx.lineTo(x+11,y-12);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y+4);ctx.lineTo(x-7,y+22);ctx.moveTo(x,y+4);ctx.lineTo(x+7,y+22);ctx.stroke();
+  ng();ctx.fillStyle=col;ctx.font='9px "Courier New"';ctx.textAlign="center";ctx.fillText(lbl,x,y+34);
+  ctx.restore();
+}
+
+// ── Our plane ──
+function drawPlane(x,y,dir,al,crashed){
+  if(al===undefined)al=1;
+  if(crashed){
+    // Wreck with fire
+    ctx.save();ctx.globalAlpha=al*0.5;ctx.translate(x,y);ctx.rotate(0.9);
+    ctx.fillStyle="#554400";
+    ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(-14,5);ctx.lineTo(-11,0);ctx.lineTo(-14,-5);ctx.closePath();ctx.fill();
+    ctx.restore();
+    return;
+  }
+  ctx.save();ctx.globalAlpha=al;ctx.translate(x,y);ctx.scale(dir,1);
+  gw(G,8);ctx.fillStyle=G;
+  ctx.beginPath();ctx.moveTo(28,0);ctx.lineTo(-20,7);ctx.lineTo(-15,0);ctx.lineTo(-20,-7);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(0,220,120,.85)";
+  ctx.beginPath();ctx.moveTo(5,-3);ctx.lineTo(-9,-27);ctx.lineTo(-17,-27);ctx.lineTo(-8,-3);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(5,3);ctx.lineTo(-9,27);ctx.lineTo(-17,27);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();
+  ctx.fillStyle=G;ctx.beginPath();ctx.moveTo(-15,-6);ctx.lineTo(-25,-18);ctx.lineTo(-20,-6);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(180,255,220,.28)";ctx.beginPath();ctx.ellipse(15,0,6,4,0,0,Math.PI*2);ctx.fill();
+  // Yellow key on plane
+  if(S&&S.yellowKeyOnPlane){
+    var kc=S.yellowKeyColor||Y;
+    gw(kc,12);ctx.strokeStyle=kc;ctx.fillStyle=kc;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(-8,14,4,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(-8,14,2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(-4,14);ctx.lineTo(6,14);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(4,14);ctx.lineTo(4,18);ctx.stroke();ng();
+  }
+  ng();ctx.restore();
+  ctx.save();ctx.globalAlpha=al;ctx.fillStyle=G;ctx.font='13px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("БПЛА (СВІЙ)",x,y-38);ctx.restore();
+}
+
+// ── Enemy white plane ──
+function drawEnemyPlane(x,y,al,hasKey,rejected){
+  if(al===undefined)al=1;
+  ctx.save();ctx.globalAlpha=al;ctx.translate(x,y);ctx.scale(-1,1);
+  var col=WH;  // завжди білий до збиття
+  gw(WH,rejected?6:10);ctx.fillStyle=col;
+  ctx.beginPath();ctx.moveTo(28,0);ctx.lineTo(-20,7);ctx.lineTo(-15,0);ctx.lineTo(-20,-7);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(200,200,200,.85)";  // завжди білий
+  ctx.beginPath();ctx.moveTo(5,-3);ctx.lineTo(-9,-27);ctx.lineTo(-17,-27);ctx.lineTo(-8,-3);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(5,3);ctx.lineTo(-9,27);ctx.lineTo(-17,27);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();
+  ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(-15,-6);ctx.lineTo(-25,-18);ctx.lineTo(-20,-6);ctx.closePath();ctx.fill();
+  // Captured yellow key
+  if(hasKey){
+    gw(Y,10);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(-8,14,4,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(-8,14,2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(-4,14);ctx.lineTo(6,14);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(4,14);ctx.lineTo(4,18);ctx.stroke();ng();
+  }
+  ng();ctx.restore();
+  ctx.save();ctx.globalAlpha=al;
+  ctx.fillStyle=WH;ctx.font='13px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("БПЛА (ВОРОГ)",x,y-38);ctx.restore();
+}
+
+// ── REB with white key and memory card ──
+function drawREB(x,y){
+  ctx.save();
+  gw(B,10);ctx.fillStyle=B;ctx.fillRect(x-18,y-13,36,26);ng();
+  ctx.strokeStyle=B;ctx.lineWidth=1.5;ctx.strokeRect(x-18,y-13,36,26);
+  ctx.fillStyle="rgba(0,207,255,.18)";ctx.fillRect(x-11,y-7,22,14);
+  ctx.fillStyle=B;ctx.font='11px "Courier New"';ctx.textAlign="center";ctx.fillText("IFF",x,y+3);
+  // Antenna mast
+  gw(B,6);ctx.strokeStyle=B;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(x,y-13);ctx.lineTo(x,y-42);ctx.stroke();
+  // Dish
+  ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y-42,13,Math.PI*1.1,Math.PI*1.9);ctx.stroke();
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(x,y-42);ctx.lineTo(x-10,y-50);ctx.moveTo(x,y-42);ctx.lineTo(x+10,y-50);ctx.stroke();
+  // Signal waves
+  [8,14,20].forEach(function(r){ctx.globalAlpha=0.12+0.06*(20-r)/20;ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y-55,r,Math.PI*1.15,Math.PI*1.85);ctx.stroke();});
+  ctx.globalAlpha=1;
+  // Blinking dot
+  ctx.globalAlpha=0.4+Math.sin(Date.now()/300)*0.6;gw(B,8);ctx.fillStyle=B;
+  ctx.beginPath();ctx.arc(x,y-55,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ng();
+  // Memory card above dish
+  ctx.save();
+  var mx=x,my=y-75;
+  ctx.fillStyle="rgba(0,10,20,.92)";ctx.strokeStyle=B;ctx.lineWidth=1.5;gw(B,5);
+  ctx.beginPath();ctx.roundRect(mx-22,my-18,44,32,3);ctx.fill();ctx.stroke();ng();
+  ctx.fillStyle="#07111c";ctx.beginPath();ctx.moveTo(mx+14,my-18);ctx.lineTo(mx+22,my-10);ctx.lineTo(mx+22,my-18);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=B;ctx.lineWidth=1;ctx.stroke();
+  [mx-14,mx-6,mx+2,mx+10].forEach(function(cx){gw(Y,3);ctx.fillStyle=Y;ctx.fillRect(cx,my+10,6,4);ng();});
+  ctx.fillStyle=B;ctx.font='bold 7px "Courier New"';ctx.textAlign="center";ctx.fillText("ЖУРНАЛ",mx,my+2);
+  var dp=0.4+Math.sin(Date.now()/400)*0.6;ctx.globalAlpha=dp;gw(G,8);ctx.fillStyle=G;
+  ctx.beginPath();ctx.arc(mx+14,my-4,3,0,Math.PI*2);ctx.fill();ng();ctx.globalAlpha=1;
+  ctx.restore();
+  // White key centered in box
+  if(S&&S.whiteKeyAtREB){
+    var blink=S.iffBlinking?(Math.floor(Date.now()/200)%2===0):true;
+    if(blink){
+      ctx.save();
+      var kcol=S.iffBlinking?Y:WH;
+      gw(kcol,14);ctx.strokeStyle=kcol;ctx.fillStyle=kcol;ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.arc(x-8,y+3,6,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(x-8,y+3,3,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.moveTo(x-2,y+3);ctx.lineTo(x+12,y+3);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+10,y+3);ctx.lineTo(x+10,y+8);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+6,y+3);ctx.lineTo(x+6,y+7);ctx.stroke();
+      ng();ctx.fillStyle=kcol;ctx.font='bold 8px "Courier New"';ctx.textAlign="center";
+      ctx.fillText("ЗАКРИТИЙ КЛЮЧ",x,y+20);ctx.restore();
+    }
+  }
+  ctx.fillStyle=B;ctx.font='13px "Courier New"';ctx.textAlign="center";ctx.fillText("ЗАПИТУВАЧ",x,y+42);
+  ctx.restore();
+}
+
+// ── Zenith ──
+function drawZenith(x,y,ang,col,lbl){
+  col=col||B;lbl=lbl||"ЗЕНІТКА";
+  ctx.save();gw(col,8);ctx.fillStyle=col;ctx.fillRect(x-18,y+4,36,16);ng();
+  ctx.strokeStyle="rgba(0,180,220,.4)";ctx.lineWidth=1;ctx.strokeRect(x-18,y+4,36,16);
+  ctx.strokeStyle=col;ctx.lineWidth=2;
+  [-11,11].forEach(function(ox){ctx.beginPath();ctx.arc(x+ox,y+20,6,0,Math.PI*2);ctx.stroke();gw(col,4);ctx.fillStyle=col;ctx.beginPath();ctx.arc(x+ox,y+20,2.5,0,Math.PI*2);ctx.fill();ng();});
+  ctx.translate(x,y+4);ctx.rotate(ang);
+  gw(col,10);ctx.strokeStyle=col;ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(38,0);ctx.stroke();ng();
+  ctx.fillStyle="#88eeff";ctx.beginPath();ctx.arc(38,0,4,0,Math.PI*2);ctx.fill();
+  gw(col,6);ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ng();
+  ctx.restore();
+  ctx.fillStyle=col;ctx.font='13px "Courier New"';ctx.textAlign="center";ctx.fillText(lbl,x,y+42);
+}
+
+// ── Signals ──
+function Sig(x1,y1,x2,y2,col,lbl,cb,spd){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.col=col;this.lbl=lbl;this.cb=cb;this.spd=spd||0.018;this.p=0;this.done=false;}
+Sig.prototype.tick=function(){if(this.done)return;this.p=Math.min(1,this.p+this.spd);if(this.p>=1){this.done=true;if(this.cb)this.cb();}};
+Sig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p,py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(this.col,10);ctx.strokeStyle=this.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();ng();
+  gw(this.col,16);ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();ng();
+  if(this.p>0.25&&this.p<0.82){var mx=this.x1+(px-this.x1)*0.55,my=this.y1+(py-this.y1)*0.55-12;gw(this.col,8);ctx.fillStyle=this.col;ctx.font='bold 10px "Courier New"';ctx.textAlign="center";ctx.fillText(this.lbl,mx,my);ng();}
+  ctx.restore();
+};
+
+function FSig(x1,y1,x2,y2,cb){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.cb=cb;this.p=0;this.done=false;this.spd=0.04;this.fl=0;}
+FSig.prototype.tick=function(){if(this.done)return;this.p=Math.min(1,this.p+this.spd);this.fl+=0.25;if(this.p>=1){this.done=true;if(this.cb)this.cb();}};
+FSig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p,py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();ctx.strokeStyle="rgba(255,51,51,.25)";ctx.lineWidth=10;gw(R,20);ctx.setLineDash([14,6]);ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();
+  ctx.strokeStyle=R;ctx.lineWidth=3;gw(R,14);ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();ctx.setLineDash([]);ng();
+  var pulse=0.6+Math.sin(this.fl)*0.4;ctx.globalAlpha=pulse;gw(R,24);ctx.fillStyle=R;ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fill();ng();ctx.globalAlpha=1;
+  if(this.p>0.2&&this.p<0.85){var mx=this.x1+(px-this.x1)*0.55,my=this.y1+(py-this.y1)*0.55-16;gw(R,12);ctx.fillStyle=R;ctx.font='bold 11px "Courier New"';ctx.textAlign="center";ctx.fillText("ЗНИЩИТИ!",mx,my);ng();}
+  ctx.restore();
+};
+
+function Shell(x1,y1,x2,y2,cb){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.cb=cb;this.p=0;this.done=false;this.trail=[];}
+Shell.prototype.tick=function(){
+  if(this.done)return;this.p=Math.min(1,this.p+0.055);
+  var cx=this.x1+(this.x2-this.x1)*this.p,cy=this.y1+(this.y2-this.y1)*this.p;
+  this.trail.push({x:cx,y:cy,a:1});this.trail.forEach(function(t){t.a-=0.07;});this.trail=this.trail.filter(function(t){return t.a>0;});
+  if(this.p>=1){this.done=true;if(this.cb)this.cb();}
+};
+Shell.prototype.draw=function(){
+  this.trail.forEach(function(t){ctx.save();ctx.globalAlpha=t.a*.55;gw("#ff8800",6);ctx.fillStyle="#ff8800";ctx.beginPath();ctx.arc(t.x,t.y,3,0,Math.PI*2);ctx.fill();ng();ctx.restore();});
+  if(this.done)return;
+  var cx=this.x1+(this.x2-this.x1)*this.p,cy=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(Y,18);ctx.fillStyle=Y;ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+};
+
+function Boom(x,y){this.x=x;this.y=y;this.r=0;this.life=1;this.pts=[];for(var i=0;i<26;i++){var cols=[R,Y,"#ff8800","#ff6600"];this.pts.push({vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,x:x,y:y,life:1,col:cols[~~(Math.random()*4)]});}}
+Boom.prototype.tick=function(){this.life-=0.02;this.r+=6;this.pts.forEach(function(p){p.x+=p.vx;p.y+=p.vy;p.life-=0.024;p.vy+=0.14;});};
+Boom.prototype.draw=function(){
+  if(this.life<=0)return;
+  ctx.save();ctx.globalAlpha=this.life*0.4;gw(R,24);ctx.strokeStyle=R;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=this.life*0.2;ctx.fillStyle="#ff4400";ctx.beginPath();ctx.arc(this.x,this.y,this.r*0.5,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  this.pts.forEach(function(p){if(p.life<=0)return;ctx.save();ctx.globalAlpha=p.life;gw(p.col,6);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ng();ctx.restore();});
+};
+
+function Fire(x,y){this.x=x;this.y=y;this.age=0;this.embers=[];}
+Fire.prototype.tick=function(){
+  this.age++;
+  if(Math.random()<0.35){this.embers.push({x:this.x+(Math.random()-.5)*18,y:this.y+(Math.random()-.5)*8,vx:(Math.random()-.5)*1.2,vy:-(Math.random()*2+0.8),life:1,size:Math.random()*4+2,col:Math.random()<0.5?"#ff4400":"#ff8800"});}
+  this.embers.forEach(function(e){e.x+=e.vx;e.y+=e.vy;e.vy+=0.05;e.life-=0.025;});
+  this.embers=this.embers.filter(function(e){return e.life>0;});
+};
+Fire.prototype.draw=function(){
+  var x=this.x,y=this.y,t=this.age*0.08;
+  for(var i=0;i<3;i++){ctx.save();ctx.globalAlpha=0.05*(0.5+Math.sin(this.age*0.05+i)*0.3);ctx.fillStyle="#888";ctx.beginPath();ctx.arc(x+Math.sin(this.age*0.03+i)*6,y-18-i*10,7+i*5,0,Math.PI*2);ctx.fill();ctx.restore();}
+  var grad=ctx.createRadialGradient(x,y,0,x,y,20);grad.addColorStop(0,"rgba(255,100,0,.7)");grad.addColorStop(1,"rgba(255,0,0,0)");
+  ctx.save();ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x,y,20,10,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  [[0,16],[-7,12],[7,12],[-3,18],[3,18]].forEach(function(fl,i){
+    var wobble=Math.sin(t+i*1.3)*4;ctx.save();
+    var fg=ctx.createLinearGradient(x+fl[0],y,x+fl[0]+wobble,y-fl[1]);fg.addColorStop(0,"rgba(255,80,0,.9)");fg.addColorStop(1,"rgba(255,240,0,0)");
+    ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(x+fl[0]-4,y);ctx.quadraticCurveTo(x+fl[0]+wobble-5,y-fl[1]*.5,x+fl[0]+wobble,y-fl[1]);ctx.quadraticCurveTo(x+fl[0]+wobble+5,y-fl[1]*.5,x+fl[0]+7,y);ctx.closePath();ctx.fill();ctx.restore();
+  });
+  this.embers.forEach(function(e){ctx.save();ctx.globalAlpha=e.life;gw(e.col,5);ctx.fillStyle=e.col;ctx.beginPath();ctx.arc(e.x,e.y,e.size*e.life,0,Math.PI*2);ctx.fill();ng();ctx.restore();});
+};
+
+// ── Journal (white bg) ──
+function drawJournal(){
+  if(!S||!S.journal||S.journal.length===0)return;
+  var jw=280,jrh=22;
+  var jh2=28+S.journal.length*jrh;
+  var jx=8,jy=H-8-jh2;
+  ctx.save();
+  ctx.fillStyle="rgba(255,255,255,.95)";ctx.beginPath();ctx.roundRect(jx,jy,jw,jh2,5);ctx.fill();
+  ctx.strokeStyle="#00aacc";ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(jx,jy,jw,jh2,5);ctx.stroke();
+  ctx.fillStyle="#003366";ctx.beginPath();ctx.roundRect(jx,jy,jw,26,{upperLeft:5,upperRight:5,lowerLeft:0,lowerRight:0});ctx.fill();
+  ctx.fillStyle=WH;ctx.font='bold 11px "Courier New"';ctx.textAlign="left";ctx.fillText("\u25fc ЖУРНАЛ IFF ЗАПИТІВ",jx+8,jy+17);
+  S.journal.forEach(function(e,i){
+    var ey=jy+30+i*jrh;
+    ctx.fillStyle=i%2===0?"rgba(240,248,255,.8)":"rgba(255,255,255,.8)";ctx.fillRect(jx+2,ey-2,jw-4,jrh);
+    ctx.fillStyle="#003399";ctx.font='bold 10px "Courier New"';ctx.textAlign="left";ctx.fillText(e.time,jx+8,ey+13);
+    var isOk=e.text.indexOf("\u2713")>=0;var isBad=e.text.indexOf("\u2717")>=0||e.text.indexOf("ЗНИЩ")>=0||e.text.indexOf("ВІДХ")>=0;
+    ctx.fillStyle=isOk?"#006600":(isBad?"#cc0000":"#000033");
+    ctx.font='bold 10px "Courier New"';ctx.fillText(e.text,jx+62,ey+13);
+  });
+  ctx.restore();
+}
+
+// ── Scoreboard (after enemy destroyed) ──
+function drawScoreboard(){
+  if(!S||!S.enemyDead)return;
+  var sw=400,sh=210;
+  var sx=Math.max(10,(W-sw)/2),sy=H-sh-8;
+  ctx.save();
+  ctx.fillStyle="rgba(2,10,20,.92)";ctx.beginPath();ctx.roundRect(sx,sy,sw,sh,8);ctx.fill();
+  gw(R,12);ctx.strokeStyle=R;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(sx,sy,sw,sh,8);ctx.stroke();ng();
+  ctx.fillStyle=R;ctx.beginPath();ctx.roundRect(sx,sy,sw,36,{upperLeft:8,upperRight:8,lowerLeft:0,lowerRight:0});ctx.fill();
+  ctx.fillStyle=WH;ctx.font='bold 13px "Courier New"';ctx.textAlign="center";ctx.fillText("\u25ac CRYPTOTAG \u2014 ЗАХИСТ ПІДТВЕРДЖЕНО \u25ac",sx+sw/2,sy+14);
+  ctx.fillStyle="rgba(255,150,150,.9)";ctx.font='9px "Courier New"';ctx.fillText("СПРОБА ПІДМІНИ КЛЮЧА ВІДХИЛЕНА",sx+sw/2,sy+28);
+  var stats=[
+    {icon:"\u274c",label:"Спроба replay-атаки",val:"ВІДХИЛЕНО",col:R},
+    {icon:"\u23f1",label:"Часова мітка прострочена",val:"TAi-TB > Limit",col:R},
+    {icon:"\uD83D\uDD10",label:"Очікувався ключ сесії +1",val:"J[i] не збігся",col:R},
+    {icon:"\u2705",label:"Алгоритм CryptoTag",val:"ЗАХИСТ",col:G},
+  ];
+  var rowY=sy+50;
+  stats.forEach(function(s){
+    ctx.fillStyle="rgba(255,255,255,.03)";ctx.fillRect(sx+8,rowY-12,sw-16,26);
+    ctx.fillStyle="rgba(200,200,200,.8)";ctx.font='11px "Courier New"';ctx.textAlign="left";ctx.fillText(s.icon+" "+s.label,sx+16,rowY+2);
+    gw(s.col,8);ctx.fillStyle=s.col;ctx.font='bold 11px "Courier New"';ctx.textAlign="right";ctx.fillText(s.val,sx+sw-16,rowY+2);ng();
+    rowY+=30;
+  });
+  ctx.fillStyle="rgba(0,255,136,.4)";ctx.font='8px "Courier New"';ctx.textAlign="center";
+  ctx.fillText("CryptoTag W-OTS+  \u00b7  ОДНОРАЗОВИЙ ПІДПИС  \u00b7  ЗАХИСТ ПІДТВЕРДЖЕНО",sx+sw/2,sy+sh-8);
+  ctx.restore();
+}
+
+// ── STATE ──
+var paused=false;
+var S,explosions,raf,ft,ra,scIdx,scTimer;
+var eZenFired=false,ourZenFired=false,landed=false;
+
+// ── SCENES ──
+var SCENES=[
+  // 0: Setup — same as sc1
+  {fr:130,lbl:"СЦЕНА 1: ПІДГОТОВКА — КЛЮЧІ РОЗПОДІЛЕНО",fn:function(){
+    S.phase="setup";setSt("Контролер Т налаштовує систему",Y);
+    showEx("Підготовка системи","Контролер Т виконує налаштування офлайн: передає закритий білий ключ запитувачу та відкритий жовтий ключ оператору. Це відбувається один раз перед місією.");
+    addLog("> CryptoTag ініціалізовано","ly");addLog("> Білий ключ \u2192 Запитувач","lw");addLog("> Жовтий ключ \u2192 Оператор \u2192 БПЛА","ly");
+    setTimeout(function(){S.whiteKeyAnim=0.01;},600);
+  }},
+  // 1: Ctrl→Op yellow key
+  {fr:120,lbl:"СЦЕНА 2: КОНТРОЛЕР ПЕРЕДАЄ ЖОВТИЙ КЛЮЧ",fn:function(){
+    S.phase="ctrl_to_op";setSt("Контролер передає жовтий ключ оператору",Y);
+    addLog("> Контролер \u2192 Оператор: жовтий ключ","ly");
+    S.ctrlYellowAnim=0.01;
+  }},
+  // 2: Op→Plane yellow key
+  {fr:110,lbl:"СЦЕНА 3: ОПЕРАТОР НАДСИЛАЄ КЛЮЧ НА БПЛА",fn:function(){
+    S.phase="op_to_plane";setSt("Оператор надсилає жовтий ключ на БПЛА",Y);
+    addLog("> Оператор \u2192 БПЛА: жовтий ключ","ly");addLog("> Ключ сесії встановлено на борту","lg");
+    S.yellowKeyAnim=0.01;
+  }},
+  // 3: Flyout
+  {fr:180,lbl:"СЦЕНА 4: БПЛА ЛЕТИТЬ НА РОЗВІДКУ",fn:function(){
+    S.phase="flyout";setSt("БПЛА з жовтим ключем летить за лінію фронту",G);
+    addLog("> Злітаю. Курс: за лінію фронту","lg");
+    hideEx();
+  }},
+  // 4: Recon + enemy zenith fires
+  {fr:220,lbl:"СЦЕНА 5: РОЗВІДКА — ВОРОЖА ЗЕНІТКА ЗБИВАЄ!",fn:function(){
+    S.phase="recon";setSt("УВАГА: Ворожа зенітка виявила наш БПЛА!",R);
+    showEx("Збиття над ворожою стороною","Наш БПЛА виконує розвідку, але ворожа зенітка виявляє і збиває його. Жовтий ключ залишається на борту збитого апарату.");
+    addLog("> Веду розвідку...","ly");addLog("> ТРИВОГА: ворожа зенітка!","lr");
+    S.eZenAiming=true;
+    setTimeout(function(){
+      if(S.done)return;
+      S.eZenShell=new Shell(EZEN_X,EZEN_Y,S.px,S.py,function(){
+        S.planeCrashed=true;S.crashX=S.px;S.crashY=S.py;
+        S.crashFire=new Fire(S.crashX,S.crashY);
+        S.keyDropped=true;
+        addLog("> НАШИЙ БПЛА ЗБИТО!","lr");addLog("> Ключ залишився на місці","lr");
+        setSt("Наш БПЛА збитий! Ключ на місці збиття",R);
+      });
+    },2500);
+  }},
+  // 5: Enemy captures key
+  {fr:230,lbl:"СЦЕНА 6: ВОРОГ ЗАХОПЛЮЄ ЖОВТИЙ КЛЮЧ",fn:function(){
+    S.phase="captured";setSt("Ворожий оператор вилучає жовтий ключ",R);
+    showEx("Критична помилка ворога","Ворог захопив жовтий ключ. Але він не знає головного: це ОДНОРАЗОВИЙ підпис. Він вже був анульований після верифікації в попередній сесії. Повторне використання неможливе.");
+    addLog("> Ворог знайшов борт","lr");addLog("> Вилучає жовтий ключ...","lr");
+    setTimeout(function(){
+      S.enemyOpHasKey=true;S.keyDropped=false;
+      addLog("> Ключ захоплено!","lr");addLog("> Ворог вважає: \u0022маю доступ\u0022","lr");
+    },2000);
+  }},
+  // 6: Enemy installs key in white plane
+  {fr:200,lbl:"СЦЕНА 7: ВОРОГ ВСТАНОВЛЮЄ КЛЮЧ У СВІЙ БПЛА",fn:function(){
+    S.phase="enemy_installs";setSt("Ворог встановлює захоплений ключ у білий БПЛА",R);
+    addLog("> Ворог: встановлюю ключ у БПЛА","lr");addLog("> Білий БПЛА готується до вильоту","lr");
+    S.enemyPlaneActive=true;
+    S.enemyPlaneX=EZEN_X-30;S.enemyPlaneY=EZEN_Y-40;
+    setTimeout(function(){S.enemyPlaneHasKey=true;S.enemyOpHasKey=false;},1500);
+    hideEx();
+  }},
+  // 7: Enemy plane crosses front
+  {fr:180,lbl:"СЦЕНА 8: ВОРОЖИЙ БПЛА ЛЕТИТЬ НА НАШУ СТОРОНУ",fn:function(){
+    S.phase="enemy_approach";setSt("Ворожий білий БПЛА перетинає лінію фронту",R);
+    addLog("> Ворожий БПЛА перетинає фронт","lr");addLog("> Намагається видати себе за 'свого'","lr");
+  }},
+  // 8: IFF query — algorithm rejects
+  {fr:560,lbl:"СЦЕНА 9: IFF ЗАПИТ — АЛГОРИТМ ВІДХИЛЯЄ",fn:function(){
+    S.phase="iff_reject";setSt("Запитувач IFF: ХТО ТИ?",B);
+    showEx("Алгоритм перевіряє",
+      "Запитувач генерує новий випадковий запит xᵗ та часову мітку TB. Ворожий БПЛА відповідає СТАРИМ жовтим ключем. Алгоритм перевіряє: Q(H(yᵢ)) = J[i]?");
+    addLog("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500","ly");
+    addLog("> IFF \u2192 [???]: ХТО ТИ? + TB","lb");addJournal("IFF \u2192 [???]: запит + TB");
+    S.sigQ=new Sig(RX,RY,S.enemyPlaneX,S.enemyPlaneY,B,"ХТО ТИ?",function(){
+      setTimeout(function(){
+        if(S.done)return;
+        addLog("> [???]: відповідає СТАРИМ ключем!","lr");
+        addLog("> Підпис yᵢ з попередньої сесії","lr");
+        addJournal("[???]: старий ключ yᵢ");
+        S.sigR=new Sig(S.enemyPlaneX,S.enemyPlaneY,RX,RY,Y,"СТАРИЙ КЛЮЧ \u2717",function(){
+          S.rejected=true;
+          showEx("Три рівні захисту відхиляють",
+            "1\ufe0f\u20e3 Q(H(yᵢ)) \u2260 J[i] — ключ анульовано\n2\ufe0f\u20e3 TAᵢ-TB перевищує ліміт сесії\n3\ufe0f\u20e3 Очікується ключ сесії t+1 — ворог не може його обчислити без genesis key");
+          addLog("> ПЕРЕВІРКА: Q(H(yi)) \u2260 J[i]","lr");addLog("> ПРОВАЛ: ключ анульовано!","lr");
+          addLog("> TAi-TB: прострочено","lr");addLog("> Очікується СЕСІЯ t+1","lr");
+          addJournal("[???]: ВІДХИЛЕНО \u2717");
+          setSt("ВІДХИЛЕНО! Q(H(yᵢ)) ≠ J[i] → ЧУЖИЙ!",R);
+          setTimeout(function(){
+            if(S.done)return;
+            addJournal("КОМАНДА: ЗНИЩИТИ!");
+            S.sigFire=new FSig(RX,RY,ZX,ZY,function(){
+              S.ourZenAiming=true;
+              addLog("> Зенітка: наказ отримано!","lr");
+              setSt("ЗЕНІТКА \u2014 ВОГОНЬ!",R);
+            });
+          },40);
+        });
+      },600);
+    });
+  }},
+  // 9: End
+  {fr:220,lbl:"СЦЕНА 10: ЧУЖИЙ ЗНИЩЕНО — АЛГОРИТМ ЗАХИСТИВ",fn:function(){
+    S.phase="endgame";hideEx();
+    addLog("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500","ly");
+    addLog("> Одноразовий підпис: захищає","lg");addLog("> Часова мітка: відхиляє старі","lg");addLog("> Genesis key: ворог не знає","lg");
+    addJournal("ЦІЛЬ ЗНИЩЕНО \u2713");
+    setSt("CryptoTag: спроба підміни відхилена \u2713",G);
+  }},
+];
+
+function startScene(i){
+  if(i>=SCENES.length)return;
+  scIdx=i;scTimer=SCENES[i].fr;setLbl(SCENES[i].lbl);SCENES[i].fn();
+}
+function movePlaneTo(tx,ty,sp){var dx=tx-S.px,dy=ty-S.py,d=Math.sqrt(dx*dx+dy*dy);if(d<sp){S.px=tx;S.py=ty;return true;}S.px+=dx/d*sp;S.py+=dy/d*sp;return false;}
+function moveEnemy(tx,ty,sp){var dx=tx-S.enemyPlaneX,dy=ty-S.enemyPlaneY,d=Math.sqrt(dx*dx+dy*dy);if(d<sp){S.enemyPlaneX=tx;S.enemyPlaneY=ty;return true;}S.enemyPlaneX+=dx/d*sp;S.enemyPlaneY+=dy/d*sp;return false;}
+
+function init(){
+  cancelAnimationFrame(raf);explosions=[];ft=0;ra=0;
+  eZenFired=false;ourZenFired=false;landed=false;
+  S={
+    phase:"setup",
+    px:PHX,py:PHY,pdir:1,
+    planeCrashed:false,crashX:0,crashY:0,crashFire:null,
+    whiteKeyAnim:0,whiteKeyAtREB:false,
+    ctrlYellowAnim:0,ctrlYellowDone:false,
+    yellowKeyAnim:0,yellowKeyOnPlane:false,
+    yellowKeyColor:Y,
+    keyDropped:false,
+    enemyOpHasKey:false,
+    enemyPlaneActive:false,enemyPlaneX:0,enemyPlaneY:0,
+    enemyPlaneHasKey:false,
+    eZenAiming:false,eZenShell:null,eZenAng:-Math.PI*0.25,
+    ourZenAiming:false,ourZenAng:-Math.PI*0.7,shell:null,mFlash:0,
+    sigQ:null,sigR:null,sigFire:null,
+    rejected:false,enemyDead:false,done:false,
+    // IFF state (not used in sc2 but needed for drawREB)
+    iffBlinking:false,
+    journal:[],
+  };
+  document.getElementById("restartBtn").style.display="none";
+  paused=false;
+  var pb=document.getElementById("pauseBtn");if(pb){pb.style.display="inline-block";pb.textContent="⏸ ПАУЗА";pb.style.borderColor="#00ff88";pb.style.color="#00ff88";}
+  var leEl=document.getElementById("le");if(leEl)leEl.innerHTML="";
+  hideEx();
+  addLog("> СЦЕНАРІЙ 2: СПРОБА ПІДМІНИ","lr");addLog("> Моделювання replay-атаки","ly");addLog("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500","ly");
+  startScene(0);loop();
+}
+
+function loop(){
+  ctx.clearRect(0,0,W,H);drawBg();drawFront();
+  ft+=0.04;var flt=Math.sin(ft)*3.5;
+
+  // Key animations
+  if(S.whiteKeyAnim>0&&S.whiteKeyAnim<1){S.whiteKeyAnim=Math.min(1,S.whiteKeyAnim+0.014);if(S.whiteKeyAnim>=1)S.whiteKeyAtREB=true;}
+  if(S.ctrlYellowAnim>0&&S.ctrlYellowAnim<1){S.ctrlYellowAnim=Math.min(1,S.ctrlYellowAnim+0.028);if(S.ctrlYellowAnim>=1)S.ctrlYellowDone=true;}
+  if(S.yellowKeyAnim>0&&S.yellowKeyAnim<1){S.yellowKeyAnim=Math.min(1,S.yellowKeyAnim+0.04);if(S.yellowKeyAnim>=1)S.yellowKeyOnPlane=true;}
+
+  // Phase movement
+  if(S.phase==="op_to_plane"&&S.yellowKeyOnPlane)S.phase="flyout";
+  if(S.phase==="flyout"){movePlaneTo(PRX,PRY,2.4);S.pdir=1;}
+  if(S.phase==="recon"&&!S.planeCrashed){ra+=0.022;S.px=PRX-40+Math.cos(ra)*55;S.py=PRY+Math.sin(ra)*28;S.pdir=Math.cos(ra)>=0?1:-1;}
+  if(S.phase==="enemy_approach"){moveEnemy(RX+100,200,2.0);}
+  if(S.phase==="iff_reject"){
+    moveEnemy(310,PRY-80,0.9);
+    if(S.sigQ){S.sigQ.x2=S.enemyPlaneX;S.sigQ.y2=S.enemyPlaneY;}
+    if(S.sigR){S.sigR.x1=S.enemyPlaneX;S.sigR.y1=S.enemyPlaneY;}
+  }
+
+  // Enemy zenith aims
+  if(S.eZenAiming&&!S.planeCrashed){
+    var edx=S.px-EZEN_X,edy=S.py-(EZEN_Y+4);
+    S.eZenAng+=(Math.atan2(edy,edx)-S.eZenAng)*0.05;
+  }
+  if(S.eZenShell)S.eZenShell.tick();
+
+  // Our zenith aims
+  if(S.phase==="endgame"&&S.ourZenAiming&&!ourZenFired){
+    var dx2=S.enemyPlaneX-ZX,dy2=S.enemyPlaneY-(ZY+4);
+    var targ=Math.atan2(dy2,dx2);S.ourZenAng+=(targ-S.ourZenAng)*0.02;
+    if(Math.abs(targ-S.ourZenAng)<0.02&&!S.shell){
+      ourZenFired=true;S.mFlash=6;
+      var bx=ZX+Math.cos(S.ourZenAng)*38,by=(ZY+4)+Math.sin(S.ourZenAng)*38;
+      S.shell=new Shell(bx,by,S.enemyPlaneX,S.enemyPlaneY,function(){
+        explosions.push(new Boom(S.enemyPlaneX,S.enemyPlaneY));
+        S.enemyDead=true;S.done=true;
+        addLog("> ЦІЛЬ ЗНИЩЕНО \u2713","lr");
+        setSt("Захоплений ключ не дав доступу. Алгоритм захистив \u2713",G);
+        document.getElementById("restartBtn").style.display="inline-block";
+          document.getElementById("pauseBtn").style.display="none";
+      });
+    }
+  }
+  if(S.mFlash>0)S.mFlash--;
+  if(S.shell)S.shell.tick();
+
+  // Signals
+  [S.sigQ,S.sigR,S.sigFire].forEach(function(s){if(s)s.tick();});
+  if(S.crashFire)S.crashFire.tick();
+  explosions=explosions.filter(function(e){return e.life>0;});explosions.forEach(function(e){e.tick();});
+
+  // ── DRAW ──
+  drawPerson(CX,CY,"КОНТРОЛЕР Т");
+  drawPerson(OX,OY,"ОПЕРАТОР");
+
+  // Enemy operator (on enemy side, near crash)
+  if((S.phase==="captured"||S.phase==="enemy_installs")&&S.planeCrashed){
+    drawPerson(S.crashX+55,S.crashY+5,"ВОРОГ",R);
+    if(S.enemyOpHasKey){
+      ctx.save();gw(Y,10);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+      var ekx=S.crashX+69,eky=S.crashY-18;
+      ctx.beginPath();ctx.arc(ekx-5,eky,4,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(ekx-5,eky,2,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.moveTo(ekx-1,eky);ctx.lineTo(ekx+8,eky);ctx.stroke();ng();
+      ctx.fillStyle=R;ctx.font='8px "Courier New"';ctx.textAlign="center";ctx.fillText("захоплений!",ekx+4,eky+14);ctx.restore();
+    }
+  }
+
+  // White key: ctrl→REB
+  if(S.whiteKeyAnim>0&&S.whiteKeyAnim<1){
+    var t=S.whiteKeyAnim,sx=CX+14,sy=CY-10,ex=RX,ey=RY+2;
+    var kx=sx+(ex-sx)*t,ky=sy+(ey-sy)*t-40*Math.sin(t*Math.PI);
+    ctx.save();gw(WH,12);ctx.strokeStyle=WH;ctx.fillStyle=WH;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx-6,ky,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx-6,ky,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx-1,ky);ctx.lineTo(kx+10,ky);ctx.stroke();ctx.beginPath();ctx.moveTo(kx+8,ky);ctx.lineTo(kx+8,ky+4);ctx.stroke();
+    ng();ctx.restore();
+  }
+  // Yellow key: ctrl→op
+  if(S.ctrlYellowAnim>0&&S.ctrlYellowAnim<1){
+    var tcy=S.ctrlYellowAnim,sx2=CX+14,sy2=CY-10,ex2=OX+14,ey2=OY-10;
+    var kx2=sx2+(ex2-sx2)*tcy,ky2=sy2+(ey2-sy2)*tcy-30*Math.sin(tcy*Math.PI);
+    ctx.save();gw(Y,12);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx2-6,ky2,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx2-6,ky2,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx2-1,ky2);ctx.lineTo(kx2+10,ky2);ctx.stroke();ctx.beginPath();ctx.moveTo(kx2+8,ky2);ctx.lineTo(kx2+8,ky2+4);ctx.stroke();
+    ng();ctx.restore();
+  }
+  // Operator holds yellow key after receiving
+  if(S.ctrlYellowDone&&!S.yellowKeyOnPlane&&S.yellowKeyAnim===0){
+    ctx.save();gw(Y,10);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    var hkx=OX+14,hky=OY-12;
+    ctx.beginPath();ctx.arc(hkx-5,hky,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(hkx-5,hky,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(hkx,hky);ctx.lineTo(hkx+10,hky);ctx.stroke();ctx.beginPath();ctx.moveTo(hkx+8,hky);ctx.lineTo(hkx+8,hky+4);ctx.stroke();
+    ng();ctx.restore();
+  }
+  // Yellow key: op→plane
+  if(S.yellowKeyAnim>0&&S.yellowKeyAnim<1){
+    var t3=S.yellowKeyAnim,sx3=OX+14,sy3=OY-10,ex3=S.px,ey3=S.py;
+    var kx3=sx3+(ex3-sx3)*t3,ky3=sy3+(ey3-sy3)*t3-50*Math.sin(t3*Math.PI);
+    ctx.save();gw(Y,12);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx3-6,ky3,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx3-6,ky3,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx3-1,ky3);ctx.lineTo(kx3+10,ky3);ctx.stroke();ctx.beginPath();ctx.moveTo(kx3+8,ky3);ctx.lineTo(kx3+8,ky3+4);ctx.stroke();
+    ng();ctx.restore();
+  }
+  // Dropped key at crash site
+  if(S.keyDropped){
+    ctx.save();ctx.globalAlpha=0.7+Math.sin(ft*3)*0.2;gw(Y,8);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(S.crashX-8,S.crashY+22,4,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(S.crashX-8,S.crashY+22,2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(S.crashX-4,S.crashY+22);ctx.lineTo(S.crashX+6,S.crashY+22);ctx.stroke();
+    ng();ctx.fillStyle=Y;ctx.font='8px "Courier New"';ctx.textAlign="center";ctx.fillText("КЛЮЧ",S.crashX,S.crashY+35);ctx.restore();
+  }
+
+  drawREB(RX,RY);
+  drawZenith(ZX,ZY,S.ourZenAng,B,"ЗЕНІТКА");
+  drawZenith(EZEN_X,EZEN_Y,S.eZenAng,R,"ВОРОЖА ЗЕНІТКА");
+
+  // Muzzle flash
+  if(S.mFlash>0){
+    var fbx=ZX+Math.cos(S.ourZenAng)*38,fby=(ZY+4)+Math.sin(S.ourZenAng)*38;
+    ctx.save();ctx.globalAlpha=S.mFlash/6;gw(Y,40);ctx.fillStyle=Y;ctx.beginPath();ctx.arc(fbx,fby,20,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  }
+  if(S.shell)S.shell.draw();
+  if(S.eZenShell)S.eZenShell.draw();
+
+  // Our plane
+  if(!S.planeCrashed){drawPlane(S.px,S.py+flt,S.pdir,1,false);}
+  else{drawPlane(S.crashX,S.crashY,1,0.6,true);}
+  if(S.crashFire)S.crashFire.draw();
+
+  // Enemy white plane
+  if(S.enemyPlaneActive&&!S.enemyDead){
+    drawEnemyPlane(S.enemyPlaneX,S.enemyPlaneY+flt,1,S.enemyPlaneHasKey,S.rejected);
+  }
+
+  explosions.forEach(function(e){e.draw();});
+  [S.sigQ,S.sigR,S.sigFire].forEach(function(s){if(s)s.draw();});
+
+  // Rejected badge
+  if(S.rejected&&!S.enemyDead){
+    ctx.save();
+    var bx=S.enemyPlaneX,by=S.enemyPlaneY+55;
+    ctx.fillStyle="rgba(255,0,0,.18)";ctx.strokeStyle=R;ctx.lineWidth=2;gw(R,14);
+    ctx.beginPath();ctx.roundRect(bx-82,by-18,164,38,7);ctx.fill();ctx.stroke();ng();
+    ctx.fillStyle=R;ctx.font='bold 12px "Courier New"';ctx.textAlign="center";
+    ctx.fillText("✗ ВІДХИЛЕНО — ЧУЖИЙ!",bx,by-2);
+    ctx.font='8px "Courier New"';ctx.fillStyle="rgba(255,80,80,.9)";
+    ctx.fillText("ключ анульовано  ·  TAi прострочено",bx,by+14);
+    ctx.restore();
+  }
+
+  drawJournal();
+  drawScoreboard();
+
+  if(!S.done){scTimer--;if(scTimer<=0&&scIdx<SCENES.length-1)startScene(scIdx+1);}
+  raf=requestAnimationFrame(loop);
+}
+window.togglePause=function(){
+  paused=!paused;
+  var btn=document.getElementById("pauseBtn");
+  if(paused){
+    cancelAnimationFrame(raf);
+    btn.textContent="▶ ПРОДОВЖИТИ";
+    btn.style.borderColor="#ffcc00";btn.style.color="#ffcc00";
+  } else {
+    btn.textContent="⏸ ПАУЗА";
+    btn.style.borderColor="#00ff88";btn.style.color="#00ff88";
+    loop();
+  }
+};
+window.init=init;
+window.addEventListener("load",function(){init();});
+})();
+</script>
+</body>
+</html>

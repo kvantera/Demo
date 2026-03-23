@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CryptoTag — Сценарій 5</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060e18;font-family:"Courier New",monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100vw;min-height:100vh;overflow:hidden}
+body::before{content:"";position:fixed;inset:0;background-image:linear-gradient(rgba(0,180,100,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,100,.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+#title{font-size:clamp(11px,1.7vw,17px);font-weight:900;letter-spacing:5px;color:#cc00ff;text-shadow:0 0 24px #cc00ff;margin-bottom:2px;text-align:center}
+#subtitle{font-size:clamp(8px,1.1vw,10px);letter-spacing:3px;color:rgba(200,200,200,.5);text-align:center;margin-bottom:4px}
+#lbl{font-size:clamp(8px,1.2vw,11px);letter-spacing:3px;color:#ffcc00;text-align:center;margin-bottom:5px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95vw}
+#wrap{position:relative;width:min(960px,100vw);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;background:#07111c;border:1px solid rgba(200,0,255,.2);border-radius:4px}
+#explain{position:absolute;right:8px;top:8px;width:clamp(155px,24%,230px);background:rgba(255,255,255,.96);border:2px solid #003366;border-radius:5px;overflow:hidden;pointer-events:none;display:none}
+#explain-head{background:#003366;color:#fff;font-weight:bold;padding:5px 9px;font-size:clamp(8px,1.1vw,11px);letter-spacing:1px}
+#explain-body{padding:7px 9px;color:#000033;line-height:1.65;font-size:clamp(7px,1vw,10px)}
+#le{display:none}
+#status{margin-top:5px;font-size:clamp(8px,1.4vw,11px);letter-spacing:2px;text-align:center;min-height:18px;transition:color .3s;white-space:nowrap;overflow:hidden;max-width:95vw}
+#ctrl{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.cbtn{background:transparent;border:1px solid #00ff88;color:#00ff88;font-family:"Courier New",monospace;font-size:10px;letter-spacing:2px;padding:6px 16px;cursor:pointer;border-radius:2px;transition:all .2s}
+.cbtn:hover{background:rgba(0,255,136,.12)}
+#restartBtn{display:none}
+</style>
+</head>
+<body>
+<div id="title">◈ CRYPTOTAG — СЦЕНАРІЙ 5: ПІДРОБКА ПІДПИСУ ◈</div>
+<div id="subtitle">ХАКЕР ПЕРЕХОПЛЮЄ СИГНАЛ · НАМАГАЄТЬСЯ ПІДРОБИТИ · W-OTS+ ВІДХИЛЯЄ</div>
+<div id="lbl">ІНІЦІАЛІЗАЦІЯ...</div>
+<div id="wrap">
+  <canvas id="c" width="960" height="540"></canvas>
+  <div id="explain"><div id="explain-head">💡 ПОЯСНЕННЯ</div><div id="explain-body"></div></div>
+  <div id="le"></div>
+</div>
+<div id="status"></div>
+<div id="ctrl">
+  <button class="cbtn" id="pauseBtn" onclick="togglePause()">⏸ ПАУЗА</button>
+  <button class="cbtn" id="restartBtn" onclick="init()">▶ ПЕРЕЗАПУСТИТИ</button>
+  <button class="cbtn" onclick="location.href='index.html'">◀ НАЗАД</button>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById("c"),ctx=cv.getContext("2d");
+var W=960,H=540;
+var G="#00ff88",R="#ff3333",Y="#ffcc00",B="#00cfff",WH="#ffffff";
+var FRONTY=355;
+var CX=88,CY=115,OX=88,OY=228;
+var RX=470,RY=182;
+
+// ── Key state ──
+var whiteKeyAnim=0,whiteKeyAtREB=false;
+var ctrlYellowAnim=0,ctrlYellowDone=false;
+var yellowKeyAnim=0,yellowKeyOnPlane=false;
+
+var paused=false,scIdx=0,scTimer=0;
+
+// ── Util ──
+function setLbl(t){document.getElementById("lbl").textContent=t;}
+function setSt(t,c){var s=document.getElementById("status");s.textContent=t;s.style.color=c;}
+function showEx(h,b){var p=document.getElementById("explain");document.getElementById("explain-head").textContent="💡 "+h;document.getElementById("explain-body").textContent=b;p.style.display="block";}
+function hideEx(){document.getElementById("explain").style.display="none";}
+function gw(c,b){ctx.shadowColor=c;ctx.shadowBlur=b;}
+function ng(){ctx.shadowColor="transparent";ctx.shadowBlur=0;}
+
+// ── Background ──
+function drawBg(){
+  ctx.fillStyle="rgba(0,255,136,.032)";ctx.fillRect(0,0,W,FRONTY);
+  ctx.fillStyle="rgba(255,51,51,.032)";ctx.fillRect(0,FRONTY,W,H-FRONTY);
+  ctx.strokeStyle="rgba(0,200,120,.04)";ctx.lineWidth=1;
+  for(var x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(var y=0;y<H;y+=44){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.fillStyle="rgba(0,255,136,.018)";ctx.fillRect(0,(Date.now()/18)%H,W,2);
+}
+function drawFront(){
+  ctx.save();ctx.strokeStyle="#ff8800";ctx.lineWidth=2.5;gw("#ff8800",12);
+  ctx.setLineDash([16,8]);ctx.beginPath();ctx.moveTo(0,FRONTY);ctx.lineTo(W,FRONTY);ctx.stroke();
+  ctx.setLineDash([]);ng();
+  ctx.font="bold 10px \"Courier New\"";
+  ctx.fillStyle="rgba(0,255,136,.55)";ctx.textAlign="left";ctx.fillText("▲  НАША СТОРОНА",14,FRONTY-10);
+  ctx.fillStyle="rgba(255,51,51,.55)";ctx.fillText("▼  ВОРОЖА СТОРОНА",14,FRONTY+20);
+  ctx.fillStyle="rgba(255,136,0,.7)";ctx.font="9px \"Courier New\"";ctx.textAlign="center";
+  ctx.fillText("— — —  ЛІНІЯ ФРОНТУ  — — —",W/2,FRONTY-5);
+  ctx.restore();
+}
+
+// ── People ──
+function drawPerson(x,y,lbl,col){
+  col=col||Y;
+  ctx.save();gw(col,8);ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y-28,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.stroke();
+  ctx.strokeStyle=col===Y?G:"#ff6600";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y-34,10,Math.PI,0);ctx.stroke();
+  ctx.strokeStyle=col;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,y-19);ctx.lineTo(x,y+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-11,y-12);ctx.lineTo(x+11,y-12);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y+4);ctx.lineTo(x-7,y+22);ctx.moveTo(x,y+4);ctx.lineTo(x+7,y+22);ctx.stroke();
+  ng();ctx.fillStyle=col;ctx.font="9px \"Courier New\"";ctx.textAlign="center";ctx.fillText(lbl,x,y+34);
+  ctx.restore();
+}
+
+// ── REB (shared) ──
+function drawREB(x,y){
+  ctx.save();gw(B,10);ctx.fillStyle=B;ctx.fillRect(x-18,y-13,36,26);ng();
+  ctx.strokeStyle=B;ctx.lineWidth=1.5;ctx.strokeRect(x-18,y-13,36,26);
+  ctx.fillStyle="rgba(0,207,255,.18)";ctx.fillRect(x-11,y-7,22,14);
+  ctx.fillStyle=B;ctx.font="11px \"Courier New\"";ctx.textAlign="center";ctx.fillText("IFF",x,y+3);
+  gw(B,6);ctx.strokeStyle=B;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(x,y-13);ctx.lineTo(x,y-42);ctx.stroke();
+  ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y-42,13,Math.PI*1.1,Math.PI*1.9);ctx.stroke();
+  [8,14,20].forEach(function(r){ctx.globalAlpha=0.12+0.06*(20-r)/20;ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y-55,r,Math.PI*1.15,Math.PI*1.85);ctx.stroke();});
+  ctx.globalAlpha=1;var pulse=0.4+Math.sin(Date.now()/300)*0.6;
+  ctx.globalAlpha=pulse;ctx.fillStyle=B;ctx.beginPath();ctx.arc(x,y-55,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ng();
+  // Memory card
+  var mx=x,my=y-75;
+  ctx.fillStyle="rgba(0,10,20,.92)";ctx.strokeStyle=B;ctx.lineWidth=1.5;gw(B,5);
+  ctx.beginPath();ctx.roundRect(mx-22,my-18,44,32,3);ctx.fill();ctx.stroke();ng();
+  [mx-14,mx-6,mx+2,mx+10].forEach(function(cx){gw(Y,3);ctx.fillStyle=Y;ctx.fillRect(cx,my+10,6,4);ng();});
+  ctx.fillStyle=B;ctx.font="bold 7px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ЖУРНАЛ",mx,my+2);
+  var dp=0.4+Math.sin(Date.now()/400)*0.6;ctx.globalAlpha=dp;gw(G,8);ctx.fillStyle=G;
+  ctx.beginPath();ctx.arc(mx+14,my-4,3,0,Math.PI*2);ctx.fill();ng();ctx.globalAlpha=1;
+  // White key at REB center
+  if(whiteKeyAtREB){
+    ctx.save();gw(WH,14);ctx.strokeStyle=WH;ctx.fillStyle=WH;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(x-8,y+2,6,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(x-8,y+2,3,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(x-2,y+2);ctx.lineTo(x+12,y+2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+10,y+2);ctx.lineTo(x+10,y+7);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x+6,y+2);ctx.lineTo(x+6,y+6);ctx.stroke();
+    ng();ctx.fillStyle=WH;ctx.font="bold 8px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ЗАКРИТИЙ КЛЮЧ",x,y+18);ctx.restore();
+  }
+  ctx.fillStyle=B;ctx.font="13px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ЗАПИТУВАЧ",x,y+42);ctx.restore();
+}
+
+// ── Plane with yellow/green key ──
+function drawPlane(x,y,dir,flt,keyCol,keyLbl){
+  flt=flt||0;
+  ctx.save();ctx.translate(x,y+flt);ctx.scale(dir,1);
+  gw(G,keyCol?18:8);ctx.fillStyle=G;
+  ctx.beginPath();ctx.moveTo(28,0);ctx.lineTo(-20,7);ctx.lineTo(-15,0);ctx.lineTo(-20,-7);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(0,220,120,.85)";
+  ctx.beginPath();ctx.moveTo(5,-3);ctx.lineTo(-9,-27);ctx.lineTo(-17,-27);ctx.lineTo(-8,-3);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(5,3);ctx.lineTo(-9,27);ctx.lineTo(-17,27);ctx.lineTo(-8,3);ctx.closePath();ctx.fill();
+  ctx.fillStyle=G;ctx.beginPath();ctx.moveTo(-15,-6);ctx.lineTo(-25,-18);ctx.lineTo(-20,-6);ctx.closePath();ctx.fill();
+  if(keyCol){
+    gw(keyCol,12);ctx.strokeStyle=keyCol;ctx.fillStyle=keyCol;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(-8,14,5,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(-8,14,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(-3,14);ctx.lineTo(8,14);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(6,14);ctx.lineTo(6,19);ctx.stroke();ng();
+  }
+  ng();ctx.restore();
+  ctx.save();ctx.fillStyle=G;ctx.font="12px \"Courier New\"";ctx.textAlign="center";
+  ctx.fillText("БПЛА (СВІЙ)",x,y+flt-36);
+  if(keyCol&&keyLbl){gw(keyCol,8);ctx.fillStyle=keyCol;ctx.font="8px \"Courier New\"";ctx.fillText(keyLbl,x,y+flt+28);ng();}
+  ctx.restore();
+}
+
+// ── Signal ──
+function Sig(x1,y1,x2,y2,col,lbl,cb,spd){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.col=col;this.lbl=lbl;this.cb=cb;this.spd=spd||0.02;this.p=0;this.done=false;}
+Sig.prototype.tick=function(){if(this.done)return;this.p=Math.min(1,this.p+this.spd);if(this.p>=1){this.done=true;if(this.cb)this.cb();}};
+Sig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p,py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(this.col,10);ctx.strokeStyle=this.col;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();ng();
+  gw(this.col,14);ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();ng();
+  if(this.p>0.25&&this.p<0.78&&this.lbl){ctx.fillStyle=this.col;ctx.font="bold 10px \"Courier New\"";ctx.textAlign="center";ctx.fillText(this.lbl,this.x1+(px-this.x1)*0.5,this.y1+(py-this.y1)*0.5-12);}
+  ctx.restore();
+};
+function FSig(x1,y1,x2,y2,cb){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.cb=cb;this.p=0;this.done=false;this.spd=0.04;this.fl=0;}
+FSig.prototype.tick=function(){if(this.done)return;this.p=Math.min(1,this.p+this.spd);this.fl+=0.25;if(this.p>=1){this.done=true;if(this.cb)this.cb();}};
+FSig.prototype.draw=function(){
+  var px=this.x1+(this.x2-this.x1)*this.p,py=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();ctx.strokeStyle="rgba(255,51,51,.25)";ctx.lineWidth=10;gw(R,20);ctx.setLineDash([14,6]);
+  ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();
+  ctx.strokeStyle=R;ctx.lineWidth=3;gw(R,14);ctx.beginPath();ctx.moveTo(this.x1,this.y1);ctx.lineTo(px,py);ctx.stroke();
+  ctx.setLineDash([]);ng();var pulse=0.6+Math.sin(this.fl)*0.4;ctx.globalAlpha=pulse;gw(R,24);ctx.fillStyle=R;
+  ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fill();ng();ctx.globalAlpha=1;
+  if(this.p>0.2&&this.p<0.85){gw(R,12);ctx.fillStyle=R;ctx.font="bold 11px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ЗНИЩИТИ!",this.x1+(px-this.x1)*0.55,this.y1+(py-this.y1)*0.55-16);ng();}
+  ctx.restore();
+};
+function Shell(x1,y1,x2,y2,cb){this.x1=x1;this.y1=y1;this.x2=x2;this.y2=y2;this.cb=cb;this.p=0;this.done=false;this.trail=[];}
+Shell.prototype.tick=function(){
+  if(this.done)return;this.p=Math.min(1,this.p+0.055);
+  var cx=this.x1+(this.x2-this.x1)*this.p,cy=this.y1+(this.y2-this.y1)*this.p;
+  this.trail.push({x:cx,y:cy,a:1});this.trail.forEach(function(t){t.a-=0.07;});this.trail=this.trail.filter(function(t){return t.a>0;});
+  if(this.p>=1){this.done=true;if(this.cb)this.cb();}
+};
+Shell.prototype.draw=function(){
+  this.trail.forEach(function(t){ctx.save();ctx.globalAlpha=t.a*.5;gw("#ff8800",6);ctx.fillStyle="#ff8800";ctx.beginPath();ctx.arc(t.x,t.y,3,0,Math.PI*2);ctx.fill();ng();ctx.restore();});
+  if(this.done)return;
+  var cx=this.x1+(this.x2-this.x1)*this.p,cy=this.y1+(this.y2-this.y1)*this.p;
+  ctx.save();gw(Y,18);ctx.fillStyle=Y;ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+};
+function Boom(x,y){this.x=x;this.y=y;this.r=0;this.life=1;this.pts=[];for(var i=0;i<24;i++){this.pts.push({vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,x:x,y:y,life:1,col:Math.random()>.5?R:Y});}}
+Boom.prototype.tick=function(){this.life-=0.022;this.r+=5;this.pts.forEach(function(p){p.x+=p.vx;p.y+=p.vy;p.life-=0.026;p.vy+=0.12;});};
+Boom.prototype.draw=function(){
+  if(this.life<=0)return;
+  ctx.save();ctx.globalAlpha=this.life*0.4;gw(R,22);ctx.strokeStyle=R;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.stroke();ng();ctx.restore();
+  this.pts.forEach(function(p){if(p.life<=0)return;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ctx.restore();});
+};
+function Fire(x,y){this.x=x;this.y=y;this.age=0;this.embers=[];}
+Fire.prototype.tick=function(){
+  this.age++;
+  if(Math.random()<0.35){this.embers.push({x:this.x+(Math.random()-.5)*18,y:this.y+(Math.random()-.5)*8,vx:(Math.random()-.5)*1.2,vy:-(Math.random()*2+0.8),life:1,size:Math.random()*4+2,col:Math.random()<0.5?"#ff4400":"#ff8800"});}
+  this.embers.forEach(function(e){e.x+=e.vx;e.y+=e.vy;e.vy+=0.05;e.life-=0.025;});
+  this.embers=this.embers.filter(function(e){return e.life>0;});
+};
+Fire.prototype.draw=function(){
+  var x=this.x,y=this.y,t=this.age*0.08;
+  var grad=ctx.createRadialGradient(x,y,0,x,y,20);grad.addColorStop(0,"rgba(255,100,0,.7)");grad.addColorStop(1,"rgba(255,0,0,0)");
+  ctx.save();ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x,y,20,10,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  [[0,16],[-7,12],[7,12]].forEach(function(fl,i){
+    var wobble=Math.sin(t+i*1.3)*4;ctx.save();
+    var fg=ctx.createLinearGradient(x+fl[0],y,x+fl[0]+wobble,y-fl[1]);fg.addColorStop(0,"rgba(255,80,0,.9)");fg.addColorStop(1,"rgba(255,240,0,0)");
+    ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(x+fl[0]-4,y);ctx.quadraticCurveTo(x+fl[0]+wobble-5,y-fl[1]*.5,x+fl[0]+wobble,y-fl[1]);ctx.quadraticCurveTo(x+fl[0]+wobble+5,y-fl[1]*.5,x+fl[0]+7,y);ctx.closePath();ctx.fill();ctx.restore();
+  });
+  this.embers.forEach(function(e){ctx.save();ctx.globalAlpha=e.life;gw(e.col,5);ctx.fillStyle=e.col;ctx.beginPath();ctx.arc(e.x,e.y,e.size*e.life,0,Math.PI*2);ctx.fill();ng();ctx.restore();});
+};
+function Zenith(x,y){this.x=x;this.y=y;this.ang=-Math.PI*.7;}
+Zenith.prototype.aimAt=function(tx,ty){var targ=Math.atan2(ty-(this.y+4),tx-this.x);this.ang+=(targ-this.ang)*0.02;return Math.abs(targ-this.ang)<0.02;};
+Zenith.prototype.draw=function(col,lbl){
+  col=col||B;lbl=lbl||"ЗЕНІТКА";
+  ctx.save();gw(col,8);ctx.fillStyle=col;ctx.fillRect(this.x-18,this.y+4,36,16);ng();
+  ctx.strokeStyle=col;ctx.lineWidth=2;[-11,11].forEach(function(ox){ctx.beginPath();ctx.arc(this.x+ox,this.y+20,6,0,Math.PI*2);ctx.stroke();gw(col,4);ctx.fillStyle=col;ctx.beginPath();ctx.arc(this.x+ox,this.y+20,2.5,0,Math.PI*2);ctx.fill();ng();}.bind(this));
+  ctx.translate(this.x,this.y+4);ctx.rotate(this.ang);
+  gw(col,10);ctx.strokeStyle=col;ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(38,0);ctx.stroke();ng();
+  ctx.fillStyle="#88eeff";ctx.beginPath();ctx.arc(38,0,4,0,Math.PI*2);ctx.fill();
+  gw(col,6);ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ng();ctx.restore();
+  ctx.fillStyle=col;ctx.font="13px \"Courier New\"";ctx.textAlign="center";ctx.fillText(lbl,this.x,this.y+42);
+};
+
+
+var ZX5=660,ZY5=158;
+var HACKER_X=780,HACKER_Y=300;
+function drawHacker(x,y,active,forging){
+  ctx.save();var col=active?"#cc00ff":"rgba(180,0,200,.4)";gw(col,active?12:3);
+  ctx.fillStyle="rgba(40,0,60,.9)";ctx.fillRect(x-22,y-28,44,28);ctx.strokeStyle=col;ctx.lineWidth=2;ctx.strokeRect(x-22,y-28,44,28);
+  ctx.fillStyle=col;ctx.font="7px \"Courier New\"";ctx.textAlign="left";
+  if(forging){["H(x)=?","FORGE","sk???","2^256"].forEach(function(t,i){ctx.fillText(t,x-18,y-22+i*7);});}
+  else if(active){ctx.fillText("INTERCEPT",x-18,y-20);ctx.fillText("ANALYZE...",x-18,y-12);}
+  ctx.fillStyle=col;ctx.fillRect(x-24,y,48,6);
+  ng();ctx.fillStyle=col;ctx.font="9px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ХАКЕР (ВОРОГ)",x,y+18);ctx.restore();
+}
+
+
+// ── Key drawing (shared) ──
+function drawKeyAnims(planeX,planeY){
+  // White key flying ctrl→REB
+  if(whiteKeyAnim>0&&whiteKeyAnim<1){
+    var t=whiteKeyAnim,sx=CX+14,sy=CY-10,ex=RX,ey=RY+2;
+    var kx=sx+(ex-sx)*t,ky=sy+(ey-sy)*t-40*Math.sin(t*Math.PI);
+    ctx.save();gw(WH,12);ctx.strokeStyle=WH;ctx.fillStyle=WH;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx-6,ky,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx-6,ky,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx-1,ky);ctx.lineTo(kx+10,ky);ctx.stroke();ctx.beginPath();ctx.moveTo(kx+8,ky);ctx.lineTo(kx+8,ky+4);ctx.stroke();ng();ctx.restore();
+  }
+  // Yellow key flying ctrl→op
+  if(ctrlYellowAnim>0&&ctrlYellowAnim<1){
+    var tcy=ctrlYellowAnim,sx2=CX+14,sy2=CY-10,ex2=OX+14,ey2=OY-10;
+    var kx2=sx2+(ex2-sx2)*tcy,ky2=sy2+(ey2-sy2)*tcy-30*Math.sin(tcy*Math.PI);
+    ctx.save();gw(Y,12);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx2-6,ky2,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx2-6,ky2,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx2-1,ky2);ctx.lineTo(kx2+10,ky2);ctx.stroke();ctx.beginPath();ctx.moveTo(kx2+8,ky2);ctx.lineTo(kx2+8,ky2+4);ctx.stroke();ng();ctx.restore();
+  }
+  // Op holds yellow key
+  if(ctrlYellowDone&&!yellowKeyOnPlane&&yellowKeyAnim===0){
+    ctx.save();gw(Y,10);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    var hkx=OX+14,hky=OY-12;
+    ctx.beginPath();ctx.arc(hkx-5,hky,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(hkx-5,hky,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(hkx,hky);ctx.lineTo(hkx+10,hky);ctx.stroke();ctx.beginPath();ctx.moveTo(hkx+8,hky);ctx.lineTo(hkx+8,hky+4);ctx.stroke();ng();ctx.restore();
+  }
+  // Yellow key flying op→plane
+  if(yellowKeyAnim>0&&yellowKeyAnim<1&&planeX){
+    var t3=yellowKeyAnim,sx3=OX+14,sy3=OY-10,ex3=planeX,ey3=planeY;
+    var kx3=sx3+(ex3-sx3)*t3,ky3=sy3+(ey3-sy3)*t3-50*Math.sin(t3*Math.PI);
+    ctx.save();gw(Y,12);ctx.strokeStyle=Y;ctx.fillStyle=Y;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(kx3-6,ky3,5,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(kx3-6,ky3,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.moveTo(kx3-1,ky3);ctx.lineTo(kx3+10,ky3);ctx.stroke();ctx.beginPath();ctx.moveTo(kx3+8,ky3);ctx.lineTo(kx3+8,ky3+4);ctx.stroke();ng();ctx.restore();
+  }
+}
+
+// ── First 3 shared scenes ──
+var SHARED_SCENES=[
+  {fr:130,lbl:"СЦЕНА 1: КОНТРОЛЕР Т — ЗАКРИТИЙ КЛЮЧ ДО ЗАПИТУВАЧА",fn:function(){
+    setSt("Контролер Т передає закритий ключ запитувачу",Y);
+    showEx("Підготовка: закритий ключ","Контролер Т офлайн передає ЗАКРИТИЙ (білий) ключ J[i] запитувачу. Це хеш першого відкритого ключа. Без нього запитувач не зможе верифікувати жодної відповіді. Передача відбувається фізично — без мережі.");
+    setTimeout(function(){whiteKeyAnim=0.01;},600);
+  }},
+  {fr:120,lbl:"СЦЕНА 2: КОНТРОЛЕР Т — ВІДКРИТИЙ КЛЮЧ ДО ОПЕРАТОРА",fn:function(){
+    setSt("Контролер Т передає відкритий ключ оператору",Y);
+    showEx("Підготовка: відкритий ключ","Контролер Т передає ВІДКРИТИЙ (жовтий) ключ skᵢ⁰ оператору. Це початковий секретний ключ БПЛА. Оператор встановить його на борт перед місією.");
+    ctrlYellowAnim=0.01;
+  }},
+  {fr:100,lbl:"СЦЕНА 3: ОПЕРАТОР — КЛЮЧ НА БПЛА",fn:function(){
+    setSt("Оператор надсилає відкритий ключ на БПЛА",Y);
+    showEx("Ключ на борту","Оператор передає жовтий ключ на БПЛА. Тепер БПЛА може відповідати на IFF запити. Підготовка завершена.");
+    yellowKeyAnim=0.01;
+  }},
+];
+
+var CUSTOM_SCENES=[
+
+  {fr:170,lbl:"СЦЕНА 4: НАШИЙ БПЛА ПРОХОДИТЬ IFF — ЛЕГІТИМНО",fn:function(){
+    setSt("Наш БПЛА: легітимна IFF автентифікація ✓",G);
+    showEx("Легітимна автентифікація","БПЛА відповідає: yᵢ=H(skᵢᵗ). Запитувач: Q(H(yᵢ))=J[i] ✓ — СВІЙ. Але ворожий хакер перехоплює цей обмін і отримує пакет {xᵗ, yᵢ, Q(pkᵢᵗ⁺¹)}.");
+    S.sigQ=new Sig(RX,RY,S.px,S.py,B,"ХТО ТИ?",function(){S.sigR=new Sig(S.px,S.py,RX,RY,G,"СВІЙ ✓",function(){S.legitimOK=true;S.hackerActive=true;},0.025);},0.025);
+  }},
+  {fr:200,lbl:"СЦЕНА 5: ХАКЕР ПЕРЕХОПЛЮЄ СИГНАЛ",fn:function(){
+    setSt("⚡ Хакер перехопив пакет! Аналізує підпис...",  "#cc00ff");
+    showEx("Перехоплення W-OTS+ пакету","Хакер отримав {xᵗ, yᵢ, Q(pkᵢᵗ⁺¹)}. Він знає yᵢ=H(skᵢᵗ). Але щоб підробити відповідь потрібен skᵢᵗ⁺¹=H(skᵢᵗ, xᵗ). Задача: знайти primage SHA-512.");
+    S.interceptAnim=0.01;
+  }},
+  {fr:240,lbl:"СЦЕНА 6: ХАКЕР НАМАГАЄТЬСЯ ПІДРОБИТИ — НЕМОЖЛИВО",fn:function(){
+    setSt("Хакер: brute-force H⁻¹(y) = 2^256 операцій... ЗУПИНЕНО",  "#cc00ff");
+    showEx("Математична неможливість","SHA-512 — однонаправлена функція. Зворотне обчислення: 2^256 операцій навіть для квантового комп'ютера. W-OTS+ стійкий до алгоритму Гровера: потрібно 2^128 квантових операцій — недосяжно.");
+    S.forging=true;
+  }},
+  {fr:220,lbl:"СЦЕНА 7: ПІДРОБЛЕНИЙ ПІДПИС ВІДХИЛЕНО АЛГОРИТМОМ",fn:function(){
+    setSt("Q(H(y_fake)) ≠ J[i] — підробка відхилена математично ✓",R);
+    showEx("Алгоритм відхиляє підробку","Хакер надсилає підроблений y_fake. Запитувач перевіряє: Q(H(y_fake))=J[i]? — НІ! Без знання skᵢᵗ⁺¹ правильний підпис математично неможливо згенерувати.");
+    setTimeout(function(){S.sigFake=new Sig(HACKER_X,HACKER_Y,RX,RY,"#cc00ff","ПІДРОБКА",function(){S.mathFail=true;},0.018);},300);
+    document.getElementById("restartBtn").style.display="inline-block";
+    document.getElementById("pauseBtn").style.display="none";
+  }},
+
+];
+
+var ALL_SCENES=SHARED_SCENES.concat(CUSTOM_SCENES);
+var raf,ft=0;
+
+function startScene(i){
+  if(i>=ALL_SCENES.length)return;
+  scIdx=i;scTimer=ALL_SCENES[i].fr;setLbl(ALL_SCENES[i].lbl);ALL_SCENES[i].fn();
+}
+
+
+var S={px:650,py:410,pdir:1,
+  sigQ:null,sigR:null,sigFake:null,
+  legitimOK:false,interceptAnim:0,forgeAnim:0,
+  mathFail:false,hackerActive:false,forging:false};
+function init(){
+  cancelAnimationFrame(raf);paused=false;ft=0;
+  whiteKeyAnim=0;whiteKeyAtREB=false;ctrlYellowAnim=0;ctrlYellowDone=false;yellowKeyAnim=0;yellowKeyOnPlane=false;
+  scIdx=0;scTimer=0;
+  S={px:650,py:410,pdir:1,sigQ:null,sigR:null,sigFake:null,legitimOK:false,interceptAnim:0,forgeAnim:0,mathFail:false,hackerActive:false,forging:false};
+  var pb=document.getElementById("pauseBtn");if(pb){pb.style.display="inline-block";pb.textContent="⏸ ПАУЗА";pb.style.color="#00ff88";pb.style.borderColor="#00ff88";}
+  document.getElementById("restartBtn").style.display="none";
+  hideEx();startScene(0);loop();
+}
+
+
+function loop(){
+  ctx.clearRect(0,0,W,H);drawBg();drawFront();
+  ft+=0.04;
+
+  // Key anim ticks
+  if(whiteKeyAnim>0&&whiteKeyAnim<1){whiteKeyAnim=Math.min(1,whiteKeyAnim+0.014);if(whiteKeyAnim>=1)whiteKeyAtREB=true;}
+  if(ctrlYellowAnim>0&&ctrlYellowAnim<1){ctrlYellowAnim=Math.min(1,ctrlYellowAnim+0.028);if(ctrlYellowAnim>=1)ctrlYellowDone=true;}
+  if(yellowKeyAnim>0&&yellowKeyAnim<1){yellowKeyAnim=Math.min(1,yellowKeyAnim+0.04);if(yellowKeyAnim>=1)yellowKeyOnPlane=true;}
+
+  
+  if(S.sigQ)S.sigQ.tick();if(S.sigR)S.sigR.tick();if(S.sigFake)S.sigFake.tick();
+  if(S.interceptAnim>0&&S.interceptAnim<1)S.interceptAnim=Math.min(1,S.interceptAnim+0.01);
+  if(S.forging&&S.forgeAnim<1)S.forgeAnim=Math.min(1,S.forgeAnim+0.004);
+
+
+  // People
+  drawPerson(CX,CY,"КОНТРОЛЕР Т");
+  drawPerson(OX,OY,"ОПЕРАТОР");
+  drawREB(RX,RY);
+
+  
+  var z5=new Zenith(ZX5,ZY5);z5.ang=-Math.PI*.5;z5.draw(B,"ЗЕНІТКА");
+  drawHacker(HACKER_X,HACKER_Y,S.hackerActive,S.forging);
+  drawPlane(S.px,S.py,1,Math.sin(ft)*3.5,yellowKeyOnPlane?Y:null,yellowKeyOnPlane?"КЛЮЧ СЕСІЇ":null);
+
+  if(S.sigQ&&!S.sigQ.done)S.sigQ.draw();
+  if(S.sigR&&!S.sigR.done)S.sigR.draw();
+  if(S.sigFake&&!S.sigFake.done)S.sigFake.draw();
+
+  // Intercept line
+  if(S.hackerActive&&S.interceptAnim>0){
+    ctx.save();ctx.globalAlpha=S.interceptAnim*0.7;gw("#cc00ff",8);ctx.strokeStyle="#cc00ff";ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(HACKER_X,HACKER_Y);ctx.lineTo((RX+S.px)/2,(RY+S.py)/2);ctx.stroke();ctx.setLineDash([]);ng();
+    ctx.fillStyle="#cc00ff";ctx.font="9px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ПЕРЕХОПЛЕНО!",HACKER_X-20,(HACKER_Y+RY)/2-10);ctx.restore();
+  }
+  // Forge attempt visual
+  if(S.forging){
+    ctx.save();var t=Date.now()/300;ctx.globalAlpha=0.5+Math.sin(t)*0.4;ctx.fillStyle="#cc00ff";
+    ctx.font="bold 10px \"Courier New\"";ctx.textAlign="center";
+    ctx.fillText("H⁻¹(y) = ???",HACKER_X,HACKER_Y-44);
+    ctx.font="8px \"Courier New\"";ctx.fillStyle=R;ctx.fillText("НЕМОЖЛИВО: 2^256 операцій",HACKER_X,HACKER_Y-58);ctx.globalAlpha=1;
+    ctx.fillStyle="rgba(200,0,255,.3)";ctx.fillRect(HACKER_X-50,HACKER_Y-72,100,8);
+    ctx.fillStyle="#cc00ff";ctx.fillRect(HACKER_X-50,HACKER_Y-72,S.forgeAnim*28,8);
+    ctx.restore();
+  }
+  // Math fail badge
+  if(S.mathFail){
+    ctx.save();ctx.fillStyle="rgba(20,0,30,.9)";ctx.beginPath();ctx.roundRect(RX-140,RY+50,280,80,7);ctx.fill();
+    gw(R,12);ctx.strokeStyle=R;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(RX-140,RY+50,280,80,7);ctx.stroke();ng();
+    ctx.fillStyle=R;ctx.font="bold 12px \"Courier New\"";ctx.textAlign="center";ctx.fillText("ПЕРЕВІРКА W-OTS+:",RX,RY+68);
+    ctx.fillStyle="rgba(220,180,255,.9)";ctx.font="10px \"Courier New\"";ctx.fillText("Q(H(y_fake)) ≠ J[i]  ✗",RX,RY+84);
+    ctx.fillStyle=R;ctx.font="bold 13px \"Courier New\"";ctx.fillText("ПІДРОБКА ВІДХИЛЕНА ✗",RX,RY+104);ctx.restore();
+  }
+  if(S.legitimOK&&!S.mathFail){
+    ctx.save();gw(G,10);ctx.fillStyle=G;ctx.font="bold 11px \"Courier New\"";ctx.textAlign="center";
+    ctx.fillText("✓ Q(H(yᵢ))=J[i] — СВІЙ",RX,RY+60);ng();ctx.restore();
+  }
+
+
+  // Key animations (always on top of people but below signals)
+  drawKeyAnims(typeof S!=="undefined"&&S?S.px:null,typeof S!=="undefined"&&S?S.py:null);
+
+  scTimer--;
+  if(scTimer<=0&&scIdx<ALL_SCENES.length-1)startScene(scIdx+1);
+  raf=requestAnimationFrame(loop);
+}
+
+window.togglePause=function(){
+  paused=!paused;var btn=document.getElementById("pauseBtn");
+  if(paused){cancelAnimationFrame(raf);btn.textContent="▶ ПРОДОВЖИТИ";btn.style.color="#ffcc00";btn.style.borderColor="#ffcc00";}
+  else{btn.textContent="⏸ ПАУЗА";btn.style.color="#00ff88";btn.style.borderColor="#00ff88";loop();}
+};
+window.init=init;
+window.addEventListener("load",function(){init();});
+})();
+</script>
+</body>
+</html>
